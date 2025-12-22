@@ -9,16 +9,13 @@ const api = axios.create({
   headers: new AxiosHeaders({ "Content-Type": "application/json" }),
 });
 
-let getToken: () => string | null = () => null;
+// Token getter reads directly from localStorage for persistence
+let getToken: () => string | null = () => localStorage.getItem("accessToken");
 let dispatch: AppDispatch | null = null;
 
 // ========================
 // INJECTORS
 // ========================
-export const injectTokenGetter = (fn: () => string | null) => {
-  getToken = fn;
-};
-
 export const injectDispatch = (d: AppDispatch) => {
   dispatch = d;
 };

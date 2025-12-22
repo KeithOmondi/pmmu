@@ -20,7 +20,7 @@ interface AuthResponse {
   success: boolean;
   message: string;
   user: User;
-  accessToken: string; // ✅ matches backend
+  accessToken: string; // matches backend
 }
 
 /* =========================
@@ -58,11 +58,11 @@ interface AuthState {
 }
 
 const initialState: AuthState = {
-  user: null,
-  accessToken: null,
+  user: JSON.parse(localStorage.getItem("user") || "null"),
+  accessToken: localStorage.getItem("accessToken"),
   loading: false,
   error: null,
-  isAuthenticated: false,
+  isAuthenticated: !!localStorage.getItem("accessToken"),
 };
 
 /* =========================
@@ -95,9 +95,13 @@ const authSlice = createSlice({
           ...action.payload.user,
           role: normalizeRole(action.payload.user.role),
         };
-        state.accessToken = action.payload.accessToken; // ✅ critical fix
+        state.accessToken = action.payload.accessToken;
         state.isAuthenticated = true;
         state.loading = false;
+
+        // Persist to localStorage
+        localStorage.setItem("user", JSON.stringify(state.user));
+        localStorage.setItem("accessToken", state.accessToken);
       })
       .addCase(login.rejected, (state, action) => {
         state.user = null;
@@ -114,6 +118,10 @@ const authSlice = createSlice({
         state.isAuthenticated = false;
         state.loading = false;
         state.error = null;
+
+        // Clear localStorage
+        localStorage.removeItem("user");
+        localStorage.removeItem("accessToken");
       });
   },
 });
