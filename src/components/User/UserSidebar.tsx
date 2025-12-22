@@ -1,6 +1,5 @@
-// src/components/User/UserSidebar.tsx
 import { useState } from "react";
-import { NavLink } from "react-router-dom";
+import { NavLink, useNavigate } from "react-router-dom";
 import {
   LayoutDashboard,
   Target,
@@ -9,12 +8,17 @@ import {
   Scale,
   ChevronRight,
   ChevronLeft,
+  LogOut,
 } from "lucide-react";
+import { useAppDispatch } from "../../store/hooks"; // adjust path
+import { logout } from "../../store/slices/authSlice";
 
 const UserSidebar = () => {
   const [isCollapsed, setIsCollapsed] = useState(false);
 
-  // Dynamic base classes for the main aside container
+  const dispatch = useAppDispatch();
+  const navigate = useNavigate();
+
   const sidebarWidth = isCollapsed ? "w-20" : "w-72";
 
   const linkClass =
@@ -26,11 +30,21 @@ const UserSidebar = () => {
   const activeClass =
     "bg-[#c2a336] text-[#1a3a32] shadow-lg shadow-[#c2a336]/20 border border-[#d4b54d]";
 
+  // Logout handler
+  const handleLogout = async () => {
+    try {
+      await dispatch(logout()).unwrap();
+      navigate("/login");
+    } catch (err) {
+      console.error("Logout failed:", err);
+    }
+  };
+
   return (
     <aside
       className={`sticky top-0 h-screen ${sidebarWidth} bg-[#1a3a32] text-white p-4 flex flex-col border-r border-white/5 shadow-2xl shrink-0 transition-all duration-500 ease-in-out`}
     >
-      {/* Collapse Toggle Button - Positioned top right of sidebar */}
+      {/* Collapse Toggle Button */}
       <button
         onClick={() => setIsCollapsed(!isCollapsed)}
         className="absolute -right-3 top-10 w-6 h-6 bg-[#c2a336] rounded-full flex items-center justify-center text-[#1a3a32] shadow-lg z-50 hover:scale-110 transition-transform"
@@ -42,9 +56,7 @@ const UserSidebar = () => {
       <div className="flex flex-col items-center mb-10 shrink-0 overflow-hidden">
         <div
           className={`bg-[#c2a336] rounded-2xl flex items-center justify-center text-[#1a3a32] shadow-xl transition-all duration-500 ${
-            isCollapsed
-              ? "w-10 h-10 mb-0"
-              : "w-14 h-14 mb-4 transform -rotate-3"
+            isCollapsed ? "w-10 h-10 mb-0" : "w-14 h-14 mb-4 transform -rotate-3"
           }`}
         >
           <Scale size={isCollapsed ? 20 : 32} />
@@ -79,7 +91,6 @@ const UserSidebar = () => {
           activeClass={activeClass}
           inactiveClass={inactiveClass}
         />
-
         <SidebarLink
           to="/user/indicators"
           icon={<Target size={18} />}
@@ -89,7 +100,6 @@ const UserSidebar = () => {
           activeClass={activeClass}
           inactiveClass={inactiveClass}
         />
-
         <SidebarLink
           to="/user/profile"
           icon={<UserCircle size={18} />}
@@ -99,7 +109,6 @@ const UserSidebar = () => {
           activeClass={activeClass}
           inactiveClass={inactiveClass}
         />
-
         <SidebarLink
           to="/user/settings"
           icon={<Settings size={18} />}
@@ -111,8 +120,16 @@ const UserSidebar = () => {
         />
       </nav>
 
-      {/* Footer / System Status */}
-      <div className="mt-auto pt-6 border-t border-white/5 shrink-0">
+      {/* Footer / Logout */}
+      <div className="mt-auto pt-6 border-t border-white/5 shrink-0 space-y-3">
+        <button
+          onClick={handleLogout}
+          className={`flex items-center justify-center w-full gap-2 rounded-lg px-4 py-3 text-sm font-medium text-rose-300 hover:bg-rose-500/10 transition-all`}
+        >
+          <LogOut size={18} />
+          {!isCollapsed && <span>Sign Out</span>}
+        </button>
+
         <div
           className={`bg-white/5 rounded-2xl flex items-center transition-all duration-300 ${
             isCollapsed ? "p-2 justify-center" : "p-4 gap-3"
@@ -130,7 +147,7 @@ const UserSidebar = () => {
   );
 };
 
-/* --- Local Helper Component --- */
+/* --- Sidebar Link Component --- */
 interface SidebarLinkProps {
   to: string;
   icon: React.ReactNode;
@@ -161,11 +178,7 @@ const SidebarLink = ({
     {({ isActive }) => (
       <>
         <div className="flex items-center gap-3">
-          <span
-            className={`${
-              isActive ? "text-[#1a3a32]" : "text-[#c2a336]"
-            } shrink-0`}
-          >
+          <span className={`${isActive ? "text-[#1a3a32]" : "text-[#c2a336]"} shrink-0`}>
             {icon}
           </span>
           {!isCollapsed && (
@@ -178,9 +191,7 @@ const SidebarLink = ({
           <ChevronRight
             size={14}
             className={`transition-transform duration-300 ${
-              isActive
-                ? "rotate-90 opacity-100"
-                : "opacity-0 group-hover:opacity-40"
+              isActive ? "rotate-90 opacity-100" : "opacity-0 group-hover:opacity-40"
             }`}
           />
         )}
