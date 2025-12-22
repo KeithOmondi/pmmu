@@ -1,6 +1,11 @@
 import { createSlice, createAsyncThunk } from "@reduxjs/toolkit";
 import api from "../../api/axios";
+import type { AppDispatch } from "../store";
+import { fetchMyNotifications } from "./notificationsSlice";
 
+/* =========================
+   TYPES
+========================= */
 export type Role = "SuperAdmin" | "Admin" | "User";
 
 export interface User {
@@ -13,62 +18,33 @@ export interface User {
   avatar?: any;
 }
 
-/* =========================
-   LOGIN RESPONSE TYPE
-========================= */
 interface AuthResponse {
   success: boolean;
   message: string;
   user: User;
-  accessToken: string; // matches backend
+  accessToken: string;
 }
 
-/* =========================
-   LOGIN THUNK
-========================= */
-export const login = createAsyncThunk<
-  AuthResponse,
-  { email: string; password: string },
-  { rejectValue: string }
->("auth/login", async (payload, { rejectWithValue }) => {
-  try {
-    const { data } = await api.post<AuthResponse>("/auth/login", payload);
-    return data;
-  } catch (err: any) {
-    return rejectWithValue(err.response?.data?.message || "Login failed");
-  }
-});
-
-/* =========================
-   LOGOUT THUNK
-========================= */
-export const logout = createAsyncThunk("auth/logout", async () => {
-  await api.post("/auth/logout");
-});
-
-/* =========================
-   STATE
-========================= */
 interface AuthState {
   user: User | null;
-  accessToken: string | null;
   loading: boolean;
   error: string | null;
   isAuthenticated: boolean;
 }
 
+/* =========================
+   INITIAL STATE
+========================= */
 const initialState: AuthState = {
-  user: JSON.parse(localStorage.getItem("user") || "null"),
-  accessToken: localStorage.getItem("accessToken"),
+  user: null,
   loading: false,
   error: null,
-  isAuthenticated: !!localStorage.getItem("accessToken"),
+  isAuthenticated: false,
 };
 
 /* =========================
-   UTILITY
+   UTILITIES
 ========================= */
-// Normalize backend role string to frontend Role type
 const normalizeRole = (role: string): Role => {
   const r = role.toLowerCase();
   if (r === "superadmin") return "SuperAdmin";
@@ -77,15 +53,89 @@ const normalizeRole = (role: string): Role => {
 };
 
 /* =========================
+   THUNKS
+========================= */
+
+/**
+ * LOGIN
+ * - stores accessToken in localStorage
+ * - sets user in redux
+ */
+export const login = createAsyncThunk<
+  AuthResponse,
+  { email: string; password: string },
+  { rejectValue: string }
+>("auth/login", async (payload, { rejectWithValue }) => {
+  try {
+    const { data } = await api.post<AuthResponse>("/auth/login", payload);
+
+    // ✅ STORE ACCESS TOKEN
+    localStorage.setItem("accessToken", data.accessToken);
+
+    return data;
+  } catch (err: any) {
+    return rejectWithValue(err.response?.data?.message || "Login failed");
+  }
+});
+
+/**
+ * REFRESH USER (optional manual refresh)
+ * Axios interceptor already handles refresh automatically
+ */
+export const refreshUser = createAsyncThunk<
+  AuthResponse,
+  void,
+  { rejectValue: string }
+>("auth/refreshUser", async (_, { rejectWithValue }) => {
+  try {
+    const { data } = await api.post<AuthResponse>("/auth/refresh");
+
+    // ✅ UPDATE ACCESS TOKEN
+    localStorage.setItem("accessToken", data.accessToken);
+
+    return data;
+  } catch (err: any) {
+    return rejectWithValue(err.response?.data?.message || "Session expired");
+  }
+});
+
+/**
+ * LOGOUT
+ * - clears cookies (backend)
+ * - clears accessToken (frontend)
+ */
+export const logout = createAsyncThunk<void, void, { dispatch: AppDispatch }>(
+  "auth/logout",
+  async (_, { dispatch }) => {
+    await api.post("/auth/logout");
+
+    // ✅ REMOVE TOKEN
+    localStorage.removeItem("accessToken");
+
+    dispatch(fetchMyNotifications());
+  }
+);
+
+/* =========================
    SLICE
 ========================= */
 const authSlice = createSlice({
   name: "auth",
   initialState,
-  reducers: {},
+  reducers: {
+    /**
+     * Used on app init to restore auth state
+     * if accessToken exists
+     */
+    setAuthenticated(state) {
+      state.isAuthenticated = true;
+    },
+  },
   extraReducers: (builder) => {
     builder
+      // -----------------
       // LOGIN
+      // -----------------
       .addCase(login.pending, (state) => {
         state.loading = true;
         state.error = null;
@@ -95,35 +145,48 @@ const authSlice = createSlice({
           ...action.payload.user,
           role: normalizeRole(action.payload.user.role),
         };
-        state.accessToken = action.payload.accessToken;
         state.isAuthenticated = true;
         state.loading = false;
-
-        // Persist to localStorage
-        localStorage.setItem("user", JSON.stringify(state.user));
-        localStorage.setItem("accessToken", state.accessToken);
       })
       .addCase(login.rejected, (state, action) => {
         state.user = null;
-        state.accessToken = null;
         state.isAuthenticated = false;
         state.loading = false;
         state.error = action.payload || "Login failed";
       })
 
+      // -----------------
+      // REFRESH USER
+      // -----------------
+      .addCase(refreshUser.pending, (state) => {
+        state.loading = true;
+      })
+      .addCase(refreshUser.fulfilled, (state, action) => {
+        state.user = {
+          ...action.payload.user,
+          role: normalizeRole(action.payload.user.role),
+        };
+        state.isAuthenticated = true;
+        state.loading = false;
+      })
+      .addCase(refreshUser.rejected, (state) => {
+        state.user = null;
+        state.isAuthenticated = false;
+        state.loading = false;
+        localStorage.removeItem("accessToken");
+      })
+
+      // -----------------
       // LOGOUT
+      // -----------------
       .addCase(logout.fulfilled, (state) => {
         state.user = null;
-        state.accessToken = null;
         state.isAuthenticated = false;
         state.loading = false;
         state.error = null;
-
-        // Clear localStorage
-        localStorage.removeItem("user");
-        localStorage.removeItem("accessToken");
       });
   },
 });
 
+export const { setAuthenticated } = authSlice.actions;
 export default authSlice.reducer;

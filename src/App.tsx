@@ -1,5 +1,7 @@
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
-import { useAppSelector } from "./store/hooks";
+import { useEffect } from "react";
+import { useAppSelector, useAppDispatch } from "./store/hooks";
+import { refreshUser, setAuthenticated } from "./store/slices/authSlice";
 
 // Pages
 import Login from "./pages/Login";
@@ -32,8 +34,26 @@ import UserIndicatorDetail from "./pages/User/UserIndicatorDetail";
 import UserProfile from "./pages/User/UserProfile";
 
 const App = () => {
-  const { user, loading: authLoading } = useAppSelector((state) => state.auth);
+  const dispatch = useAppDispatch();
+  const { user, loading: authLoading, isAuthenticated } = useAppSelector(
+    (state) => state.auth
+  );
 
+  /* =========================
+     RESTORE SESSION ON LOAD
+  ========================= */
+  useEffect(() => {
+    const token = localStorage.getItem("accessToken");
+
+    if (token && !isAuthenticated) {
+      dispatch(setAuthenticated());
+      dispatch(refreshUser());
+    }
+  }, [dispatch, isAuthenticated]);
+
+  /* =========================
+     BLOCK ROUTING WHILE AUTH CHECKS
+  ========================= */
   if (authLoading) {
     return (
       <div className="flex justify-center items-center h-screen">
@@ -45,10 +65,11 @@ const App = () => {
   return (
     <BrowserRouter>
       <Routes>
+        {/* PUBLIC */}
         <Route path="/login" element={<Login />} />
         <Route path="/unauthorized" element={<Unauthorized />} />
 
-        {/* SuperAdmin */}
+        {/* SUPER ADMIN */}
         <Route element={<ProtectedRoute allowedRoles={["SuperAdmin"]} />}>
           <Route path="/superadmin" element={<SuperAdminLayout />}>
             <Route path="dashboard" element={<SuperAdminDashboard />} />
@@ -59,7 +80,7 @@ const App = () => {
           </Route>
         </Route>
 
-        {/* Admin */}
+        {/* ADMIN */}
         <Route element={<ProtectedRoute allowedRoles={["Admin"]} />}>
           <Route path="/admin" element={<AdminLayout />}>
             <Route path="dashboard" element={<AdminDashboard />} />
@@ -73,7 +94,7 @@ const App = () => {
           </Route>
         </Route>
 
-        {/* User */}
+        {/* USER */}
         <Route element={<ProtectedRoute allowedRoles={["User"]} />}>
           <Route path="/user" element={<UserLayout />}>
             <Route path="dashboard" element={<UserDashboard />} />
@@ -83,7 +104,7 @@ const App = () => {
           </Route>
         </Route>
 
-        {/* Default route */}
+        {/* ROOT REDIRECT */}
         <Route
           path="/"
           element={

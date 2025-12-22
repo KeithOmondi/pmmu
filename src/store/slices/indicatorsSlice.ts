@@ -5,6 +5,7 @@ import {
 } from "@reduxjs/toolkit";
 import type { RootState } from "../store";
 import api from "../../api/axios";
+import { addNotification } from "./notificationsSlice";
 
 export type IndicatorStatus = "pending" | "approved" | "rejected" | "overdue";
 export type AssignedToType = "individual" | "group";
@@ -36,6 +37,7 @@ export interface IIndicator {
   calendarEvent?: Record<string, unknown> | null;
   createdAt: string;
   updatedAt: string;
+  
 }
 
 // --- DTOs (Payloads) ---
@@ -56,6 +58,12 @@ export interface CreateIndicatorPayload {
 export interface UpdateIndicatorPayload {
   id: string;
   updates: Partial<CreateIndicatorPayload>;
+}
+
+export interface SubmitEvidencePayload {
+  id: string;
+  files: File[];
+  descriptions?: string[];
 }
 
 // --- Helpers ---
@@ -151,6 +159,50 @@ export const deleteIndicator = createAsyncThunk<
   }
 });
 
+
+
+export const submitIndicatorEvidence = createAsyncThunk<
+  IIndicator,
+  SubmitEvidencePayload,
+  { rejectValue: string; state: RootState }
+>(
+  "indicators/submitEvidence",
+  async ({ id, files, descriptions }, thunkAPI) => {
+    try {
+      const formData = new FormData();
+      files.forEach((file, idx) => {
+        formData.append("evidence", file);
+        formData.append("descriptions", descriptions?.[idx] || "");
+      });
+
+      const { data } = await api.post(`/indicators/submit/${id}`, formData, {
+        headers: { "Content-Type": "multipart/form-data" },
+      });
+
+      const indicator = normalizeIndicator(data.indicator);
+
+      // --- Dispatch notification to header ---
+      thunkAPI.dispatch(
+        addNotification({
+          _id: `notif-${Date.now()}`, // temp ID
+          title: "Task Submitted",
+          message: `Evidence for "${indicator.indicatorTitle}" has been submitted.`,
+          read: false,
+          createdAt: new Date().toISOString(),
+        })
+      );
+
+      return indicator;
+    } catch (err) {
+      return thunkAPI.rejectWithValue(
+        handleError(err, "Failed to submit evidence")
+      );
+    }
+  }
+);
+
+
+
 // --- Slice ---
 interface IndicatorState {
   userIndicators: IIndicator[];
@@ -205,6 +257,15 @@ const indicatorSlice = createSlice({
           (i) => i._id !== action.payload
         );
       })
+      .addCase(submitIndicatorEvidence.fulfilled, (state, action) => {
+        state.userIndicators = state.userIndicators.map((i) =>
+          i._id === action.payload._id ? action.payload : i
+        );
+        state.allIndicators = state.allIndicators.map((i) =>
+          i._id === action.payload._id ? action.payload : i
+        );
+        state.successMessage = "Evidence submitted successfully";
+      })
       .addMatcher(
         (a) => a.type.startsWith("indicators/") && a.type.endsWith("/pending"),
         (state) => {
@@ -213,7 +274,8 @@ const indicatorSlice = createSlice({
         }
       )
       .addMatcher(
-        (a) => a.type.startsWith("indicators/") && a.type.endsWith("/fulfilled"),
+        (a) =>
+          a.type.startsWith("indicators/") && a.type.endsWith("/fulfilled"),
         (state) => {
           state.loading = false;
         }

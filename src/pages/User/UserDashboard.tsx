@@ -1,4 +1,5 @@
 // src/pages/User/UserDashboard.tsx
+import React, { useEffect } from "react";
 import {
   TrendingUp,
   AlertCircle,
@@ -8,31 +9,58 @@ import {
   ShieldCheck,
   Zap,
 } from "lucide-react";
+import { useDispatch, useSelector } from "react-redux";
+import type { AppDispatch, RootState } from "../../store/store";
+import {
+  fetchUserIndicators,
+  type IIndicator,
+  selectUserIndicators,
+} from "../../store/slices/indicatorsSlice";
 
-const UserDashboard = () => {
-  // Mock data for visual demonstration
+const UserDashboard: React.FC = () => {
+  const dispatch = useDispatch<AppDispatch>();
+  const userIndicators = useSelector<RootState, IIndicator[]>(
+    selectUserIndicators
+  );
+
+  useEffect(() => {
+    dispatch(fetchUserIndicators());
+  }, [dispatch]);
+
+  // Compute stats dynamically
+  const activeMandates = userIndicators.filter(
+    (i) => i.status === "approved"
+  ).length;
+  const pendingReview = userIndicators.filter(
+    (i) => i.status === "pending"
+  ).length;
+  const ratified = userIndicators.filter((i) => i.status === "approved").length; // example, adjust logic if needed
+  const urgentAction = userIndicators.filter(
+    (i) => i.status === "overdue"
+  ).length;
+
   const stats = [
     {
       label: "Active Mandates",
-      value: "12",
+      value: activeMandates,
       icon: <ShieldCheck size={20} />,
       color: "bg-[#1a3a32] text-[#c2a336]",
     },
     {
       label: "Pending Review",
-      value: "04",
+      value: pendingReview,
       icon: <Clock size={20} />,
       color: "bg-[#f4f0e6] text-[#c2a336]",
     },
     {
       label: "Ratified",
-      value: "08",
+      value: ratified,
       icon: <CheckCircle2 size={20} />,
       color: "bg-emerald-50 text-emerald-700",
     },
     {
       label: "Urgent Action",
-      value: "02",
+      value: urgentAction,
       icon: <AlertCircle size={20} />,
       color: "bg-rose-50 text-rose-700",
     },
@@ -75,8 +103,8 @@ const UserDashboard = () => {
           ))}
         </div>
 
+        {/* Priority Mandates */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-          {/* Strategic Focus (Urgent Items) */}
           <div className="lg:col-span-2 space-y-6">
             <div className="flex items-center justify-between">
               <h3 className="text-lg font-black text-[#1a3a32] uppercase tracking-tight">
@@ -88,17 +116,18 @@ const UserDashboard = () => {
             </div>
 
             <div className="space-y-4">
-              {[1, 2].map((item) => (
+              {userIndicators.slice(0, 2).map((item) => (
                 <div
-                  key={item}
+                  key={item._id}
                   className="bg-white p-6 rounded-[2rem] border-l-4 border-l-[#c2a336] border border-gray-100 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-4"
                 >
                   <div>
                     <h4 className="font-black text-[#1a3a32] text-md">
-                      Quarterly Compliance Audit {item}
+                      {item.indicatorTitle}
                     </h4>
                     <p className="text-xs text-gray-400 font-bold uppercase tracking-tight mt-1">
-                      Due in 3 days • Section B-12
+                      Due {new Date(item.dueDate).toLocaleDateString()} •
+                      Section B-12
                     </p>
                   </div>
                   <div className="flex items-center gap-4">
@@ -106,7 +135,9 @@ const UserDashboard = () => {
                       <p className="text-[10px] font-black text-gray-400 uppercase">
                         Progress
                       </p>
-                      <p className="text-sm font-black text-[#1a3a32]">65%</p>
+                      <p className="text-sm font-black text-[#1a3a32]">
+                        {item.progress}%
+                      </p>
                     </div>
                     <button className="bg-[#1a3a32] text-white px-6 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-[#c2a336] transition-colors shadow-lg shadow-[#1a3a32]/10">
                       Resume
@@ -117,7 +148,7 @@ const UserDashboard = () => {
             </div>
           </div>
 
-          {/* Performance Overview */}
+          {/* Efficiency Overview */}
           <div className="bg-[#1a3a32] rounded-[2.5rem] p-8 text-white shadow-2xl relative overflow-hidden">
             <TrendingUp className="absolute -right-4 -top-4 w-32 h-32 text-white/5 rotate-12" />
 

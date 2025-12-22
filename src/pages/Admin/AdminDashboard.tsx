@@ -1,16 +1,31 @@
 // src/pages/Admin/AdminDashboard.tsx
-import React from "react";
+import React, { useEffect } from "react";
+import { useSelector, useDispatch } from "react-redux";
 import {
-  Gavel,
+  ShieldCheck,
   Users,
   FileText,
-  ShieldCheck,
+  Gavel,
+  Activity,
   ArrowUpRight,
   BellRing,
-  Activity,
 } from "lucide-react";
 
+import {
+  fetchAllIndicatorsForAdmin,
+  type IIndicator,
+} from "../../store/slices/indicatorsSlice";
+import { fetchUsers, type IUser } from "../../store/slices/userSlice";
+import type { AppDispatch, RootState } from "../../store/store";
+
 const AdminDashboard = () => {
+  const dispatch = useDispatch<AppDispatch>();
+
+  const users = useSelector<RootState, IUser[]>((state) => state.users.users);
+  const allIndicators = useSelector<RootState, IIndicator[]>(
+    (state) => state.indicators.allIndicators
+  );
+
   const BRAND = {
     green: "#1a3a32",
     gold: "#c2a336",
@@ -18,11 +33,24 @@ const AdminDashboard = () => {
     lightGold: "#f4f0e6",
   };
 
+  useEffect(() => {
+    dispatch(fetchAllIndicatorsForAdmin());
+    dispatch(fetchUsers());
+  }, [dispatch]);
+
+  const pendingIndicators = allIndicators.filter(
+    (i) => i.status === "pending"
+  ).length;
+  const systemAudits = allIndicators.filter(
+    (i) => i.status === "approved"
+  ).length;
+  const registryUsers = users.length;
+  const caseFiles = allIndicators.length;
+
   return (
     <div className="min-h-screen bg-[#f8f9fa] p-4 sm:p-6 lg:p-10 space-y-6 md:space-y-8">
-      {/* Welcome & Header Section */}
+      {/* Header */}
       <header className="flex flex-col md:flex-row md:items-center justify-between gap-6 bg-white p-6 sm:p-8 rounded-2xl border border-gray-100 shadow-sm relative overflow-hidden">
-        {/* Subtle Decorative Geometric Shapes */}
         <div className="absolute top-0 right-0 w-32 h-32 bg-[#c2a336]/5 -mr-10 -mt-10 rotate-45 hidden sm:block" />
         <div className="absolute bottom-0 right-20 w-16 h-16 bg-[#1a3a32]/5 rotate-12 hidden sm:block" />
 
@@ -58,62 +86,60 @@ const AdminDashboard = () => {
         </div>
       </header>
 
-      {/* Main Grid */}
+      {/* Metrics Grid */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 sm:gap-8">
-        {/* Quick Statistics / Metric Cards */}
         <div className="lg:col-span-2 grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6">
           <ActionCard
             title="Registry Users"
-            count="1,240"
+            count={registryUsers}
             trend="+12%"
             icon={<Users />}
             color={BRAND.green}
           />
           <ActionCard
             title="Pending Indicators"
-            count="42"
+            count={pendingIndicators}
             trend="Needs Review"
             icon={<FileText />}
             color={BRAND.gold}
           />
           <ActionCard
             title="System Audits"
-            count="08"
+            count={systemAudits}
             trend="Last 24h"
             icon={<Activity />}
             color="#3b82f6"
           />
           <ActionCard
             title="Case Files"
-            count="856"
+            count={caseFiles}
             trend="Stable"
             icon={<Gavel />}
             color={BRAND.slate}
           />
         </div>
 
-        {/* Institutional Side Panel (Recent Activity) */}
         <aside className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5 sm:p-6 h-fit">
           <h3 className="text-xs font-bold text-[#1a3a32] uppercase tracking-widest border-b border-gray-50 pb-4 mb-4">
             Security Logs
           </h3>
           <div className="space-y-6">
-            <LogEntry
-              time="10:24 AM"
-              action="Indicator Approved"
-              user="Hon. Eric Ogola"
-            />
-            <LogEntry
-              time="09:15 AM"
-              action="User Access Revoked"
-              user="Registry System"
-            />
-            <LogEntry
-              time="Yesterday"
-              action="New Admin Created"
-              user="Super Admin"
-            />
+            {allIndicators.slice(0, 3).map((i) => {
+              const userName =
+                typeof i.createdBy === "string"
+                  ? i.createdBy
+                  : (i.createdBy as any)?.name || "System";
+              return (
+                <LogEntry
+                  key={i._id}
+                  time={i.updatedAt}
+                  action={i.indicatorTitle}
+                  user={userName}
+                />
+              );
+            })}
           </div>
+
           <button className="w-full mt-8 py-3 text-[10px] sm:text-xs font-bold text-[#c2a336] uppercase tracking-[0.2em] border border-[#c2a336]/20 rounded-xl hover:bg-[#f4f0e6] transition-colors">
             View Full Audit Trail
           </button>
@@ -123,8 +149,7 @@ const AdminDashboard = () => {
   );
 };
 
-/* --- Internal Components for Dashboard --- */
-
+/* --- Components --- */
 const ActionCard = ({ title, count, trend, icon, color }: any) => (
   <div className="bg-white p-5 sm:p-6 rounded-2xl border border-gray-50 shadow-sm hover:shadow-md transition-shadow group cursor-pointer">
     <div className="flex justify-between items-start mb-4">
@@ -143,7 +168,9 @@ const ActionCard = ({ title, count, trend, icon, color }: any) => (
       {title}
     </p>
     <div className="flex items-baseline flex-wrap gap-2 mt-1">
-      <span className="text-2xl sm:text-3xl font-black text-[#1a3a32]">{count}</span>
+      <span className="text-2xl sm:text-3xl font-black text-[#1a3a32]">
+        {count}
+      </span>
       <span className="text-[9px] sm:text-[10px] font-bold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded uppercase">
         {trend}
       </span>
@@ -151,15 +178,27 @@ const ActionCard = ({ title, count, trend, icon, color }: any) => (
   </div>
 );
 
-const LogEntry = ({ time, action, user }: any) => (
+const LogEntry = ({
+  time,
+  action,
+  user,
+}: {
+  time: string;
+  action: string;
+  user: string;
+}) => (
   <div className="flex gap-4">
     <div className="flex flex-col items-center">
       <div className="w-2 h-2 rounded-full bg-[#c2a336] mb-1"></div>
       <div className="w-[1px] flex-1 bg-gray-100"></div>
     </div>
     <div className="pb-2">
-      <p className="text-[9px] sm:text-[10px] font-bold text-[#8c94a4] uppercase">{time}</p>
-      <p className="text-sm font-bold text-[#1a3a32] leading-tight mb-1">{action}</p>
+      <p className="text-[9px] sm:text-[10px] font-bold text-[#8c94a4] uppercase tracking-widest">
+        {new Date(time).toLocaleString()}
+      </p>
+      <p className="text-sm font-bold text-[#1a3a32] leading-tight mb-1">
+        {action}
+      </p>
       <p className="text-xs text-gray-500 italic">By {user}</p>
     </div>
   </div>

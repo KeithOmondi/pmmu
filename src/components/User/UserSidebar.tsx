@@ -15,6 +15,7 @@ import { logout } from "../../store/slices/authSlice";
 
 const UserSidebar = () => {
   const [isCollapsed, setIsCollapsed] = useState(false);
+  const [isLoggingOut, setIsLoggingOut] = useState(false);
 
   const dispatch = useAppDispatch();
   const navigate = useNavigate();
@@ -32,11 +33,19 @@ const UserSidebar = () => {
 
   // Logout handler
   const handleLogout = async () => {
+    setIsLoggingOut(true);
     try {
       await dispatch(logout()).unwrap();
-      navigate("/login");
+      // Navigate to login page on successful logout
+      navigate("/login", { replace: true });
     } catch (err) {
       console.error("Logout failed:", err);
+      // Even if the API call fails, clear local state and redirect
+      localStorage.removeItem("user");
+      localStorage.removeItem("accessToken");
+      navigate("/login", { replace: true });
+    } finally {
+      setIsLoggingOut(false);
     }
   };
 
@@ -56,7 +65,9 @@ const UserSidebar = () => {
       <div className="flex flex-col items-center mb-10 shrink-0 overflow-hidden">
         <div
           className={`bg-[#c2a336] rounded-2xl flex items-center justify-center text-[#1a3a32] shadow-xl transition-all duration-500 ${
-            isCollapsed ? "w-10 h-10 mb-0" : "w-14 h-14 mb-4 transform -rotate-3"
+            isCollapsed
+              ? "w-10 h-10 mb-0"
+              : "w-14 h-14 mb-4 transform -rotate-3"
           }`}
         >
           <Scale size={isCollapsed ? 20 : 32} />
@@ -124,10 +135,15 @@ const UserSidebar = () => {
       <div className="mt-auto pt-6 border-t border-white/5 shrink-0 space-y-3">
         <button
           onClick={handleLogout}
-          className={`flex items-center justify-center w-full gap-2 rounded-lg px-4 py-3 text-sm font-medium text-rose-300 hover:bg-rose-500/10 transition-all`}
+          disabled={isLoggingOut}
+          className={`flex items-center justify-center w-full gap-2 rounded-lg px-4 py-3 text-sm font-medium text-rose-300 hover:bg-rose-500/10 transition-all ${
+            isLoggingOut ? "opacity-70 cursor-not-allowed" : ""
+          }`}
         >
-          <LogOut size={18} />
-          {!isCollapsed && <span>Sign Out</span>}
+          <LogOut size={18} className={isLoggingOut ? "animate-pulse" : ""} />
+          {!isCollapsed && (
+            <span>{isLoggingOut ? "Signing out..." : "Sign Out"}</span>
+          )}
         </button>
 
         <div
@@ -178,7 +194,11 @@ const SidebarLink = ({
     {({ isActive }) => (
       <>
         <div className="flex items-center gap-3">
-          <span className={`${isActive ? "text-[#1a3a32]" : "text-[#c2a336]"} shrink-0`}>
+          <span
+            className={`${
+              isActive ? "text-[#1a3a32]" : "text-[#c2a336]"
+            } shrink-0`}
+          >
             {icon}
           </span>
           {!isCollapsed && (
@@ -191,7 +211,9 @@ const SidebarLink = ({
           <ChevronRight
             size={14}
             className={`transition-transform duration-300 ${
-              isActive ? "rotate-90 opacity-100" : "opacity-0 group-hover:opacity-40"
+              isActive
+                ? "rotate-90 opacity-100"
+                : "opacity-0 group-hover:opacity-40"
             }`}
           />
         )}

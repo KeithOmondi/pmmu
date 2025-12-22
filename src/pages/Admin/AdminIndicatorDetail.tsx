@@ -1,4 +1,3 @@
-// src/pages/Admin/AdminIndicatorDetail.tsx
 import React, { useEffect, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { useAppDispatch, useAppSelector } from "../../store/hooks";
@@ -16,6 +15,7 @@ import {
   Activity,
   Info,
   Clock,
+  FileCheck,
 } from "lucide-react";
 
 const AdminIndicatorDetail: React.FC = () => {
@@ -25,6 +25,7 @@ const AdminIndicatorDetail: React.FC = () => {
 
   const indicators = useAppSelector(selectAllIndicators);
   const users = useAppSelector(selectAllUsers);
+
   const [indicator, setIndicator] = useState<any>(null);
 
   useEffect(() => {
@@ -32,6 +33,7 @@ const AdminIndicatorDetail: React.FC = () => {
     dispatch(fetchUsers());
   }, [dispatch]);
 
+  // Keep indicator updated, especially after user submissions
   useEffect(() => {
     if (id && indicators.length) {
       const found = indicators.find((i) => i._id === id);
@@ -135,7 +137,7 @@ const AdminIndicatorDetail: React.FC = () => {
             </div>
           </div>
 
-          {/* Section 2: Progress & Analytics */}
+          {/* Section 2: Progress & Evidence */}
           <div className="p-8 space-y-6 bg-gray-50/30">
             <h3 className="text-[10px] font-black text-[#8c94a4] uppercase tracking-[0.2em]">
               Current Performance
@@ -157,13 +159,36 @@ const AdminIndicatorDetail: React.FC = () => {
                   />
                 </div>
               </div>
+
+              {/* Evidence Archive */}
               <div className="p-4 bg-white rounded-2xl border border-gray-100">
-                <p className="text-[10px] text-[#8c94a4] font-bold uppercase mb-1">
-                  Sub-Category
-                </p>
-                <p className="text-sm font-bold text-[#1a3a32]">
-                  {indicator.level2Category?.title ?? "Not Specified"}
-                </p>
+                <h4 className="text-[10px] font-black text-[#8c94a4] uppercase tracking-[0.2em] mb-2">
+                  Submitted Evidence
+                </h4>
+                {indicator.evidence?.length > 0 ? (
+                  <ul className="space-y-2">
+                    {indicator.evidence.map((file: any, idx: number) => (
+                      <li
+                        key={idx}
+                        className="flex items-center gap-2 text-sm text-gray-700 font-bold"
+                      >
+                        <FileCheck size={16} className="text-[#c2a336]" />
+                        <a
+                          href={file.fileUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="underline truncate"
+                        >
+                          {file.fileName}
+                        </a>
+                      </li>
+                    ))}
+                  </ul>
+                ) : (
+                  <p className="text-xs font-bold text-gray-400 italic">
+                    No evidence submitted yet.
+                  </p>
+                )}
               </div>
             </div>
           </div>
@@ -200,7 +225,6 @@ const AdminIndicatorDetail: React.FC = () => {
 };
 
 /* --- Helpers --- */
-
 const DetailItem = ({
   icon,
   label,

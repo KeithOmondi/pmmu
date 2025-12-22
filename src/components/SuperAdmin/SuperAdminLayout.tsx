@@ -1,5 +1,6 @@
 import { Outlet } from "react-router-dom";
 import SuperAdminSidebar from "./SuperAdminSidebar";
+import SuperAdminHeader from "./SuperAdminHeader";
 
 const SuperAdminLayout = () => {
   return (
@@ -8,9 +9,15 @@ const SuperAdminLayout = () => {
       <SuperAdminSidebar />
 
       {/* Main Content */}
-      <main className="flex-1 p-6">
-        <Outlet />
-      </main>
+      <div className="flex-1 flex flex-col">
+        {/* Sticky Header */}
+        <SuperAdminHeader />
+
+        {/* Page Content */}
+        <main className="flex-1 p-6 mt-0">
+          <Outlet />
+        </main>
+      </div>
     </div>
   );
 };

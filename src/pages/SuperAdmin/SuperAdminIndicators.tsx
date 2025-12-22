@@ -93,25 +93,25 @@ const SuperAdminIndicators: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen bg-slate-50/50 p-4 md:p-10">
-      {/* Top Header - Optimized for mobile stacking */}
-      <header className="max-w-7xl mx-auto flex flex-col md:flex-row justify-between items-start md:items-center gap-6 mb-8 md:mb-12">
+    <div className="min-h-screen bg-[#f8fafc] p-4 md:p-8">
+      {/* Institutional Header */}
+      <header className="max-w-7xl mx-auto flex flex-col md:flex-row justify-between items-start md:items-center gap-6 mb-10">
         <div>
-          <div className="flex items-center gap-2 text-indigo-600 font-bold text-xs mb-2 uppercase tracking-[0.15em]">
-            <Layers className="w-4 h-4" />
-            Administration
+          <div className="flex items-center gap-2 text-[#c2a336] font-black text-[10px] mb-2 uppercase tracking-[0.2em]">
+            <Layers className="w-3 h-3" />
+            Registry Management
           </div>
-          <h1 className="text-2xl md:text-4xl font-black text-slate-900 tracking-tight">
-            Indicator Management
+          <h1 className="text-3xl font-black text-[#1a3a32] tracking-tight">
+            Institutional Indicators
           </h1>
-          <p className="text-slate-500 text-sm mt-1">Configure and assign institutional performance metrics.</p>
+          <p className="text-slate-500 text-sm mt-1 font-medium">Configure and assign institutional performance metrics.</p>
         </div>
 
         <button
           onClick={() => { setEditData(null); setShowForm(true); }}
-          className="w-full md:w-auto flex items-center justify-center gap-2 px-8 py-4 bg-indigo-600 hover:bg-indigo-700 text-white rounded-2xl font-bold transition-all shadow-xl shadow-indigo-200 active:scale-95"
+          className="w-full md:w-auto flex items-center justify-center gap-2 px-6 py-3.5 bg-[#1a3a32] hover:bg-[#142d26] text-white rounded-xl font-bold transition-all shadow-xl shadow-[#1a3a32]/10 active:scale-95 text-sm uppercase tracking-widest"
         >
-          <Plus className="w-5 h-5" />
+          <Plus className="w-4 h-4 text-[#c2a336]" />
           Create Indicator
         </button>
       </header>
@@ -120,27 +120,31 @@ const SuperAdminIndicators: React.FC = () => {
       <main className="max-w-7xl mx-auto">
         {isLoading ? (
           <div className="flex flex-col justify-center items-center h-64 text-slate-400 gap-4">
-            <Loader2 className="w-10 h-10 animate-spin text-indigo-500" />
-            <p className="text-sm font-medium animate-pulse">Synchronizing metrics...</p>
+            <Loader2 className="w-8 h-8 animate-spin text-[#c2a336]" />
+            <p className="text-[10px] font-black uppercase tracking-widest animate-pulse text-[#1a3a32]">Synchronizing registry...</p>
           </div>
         ) : (
           Object.values(groupedIndicators).map((group) => (
-            <section key={group.category._id} className="mb-10 md:mb-16">
-              <div className="flex items-center gap-3 mb-6">
-                <div className="w-1 h-8 bg-indigo-600 rounded-full" />
-                <h2 className="text-lg md:text-2xl font-extrabold text-slate-800">
-                  {group.category.title}
-                </h2>
-                <span className="px-2 py-1 bg-slate-200 text-slate-600 rounded-lg text-[10px] font-black uppercase tracking-wider">
-                  {group.category.code ?? "—"}
+            <section key={group.category._id} className="mb-12">
+              <div className="flex items-center justify-between mb-6 border-b border-slate-200 pb-4">
+                <div className="flex items-center gap-4">
+                    <div className="w-10 h-10 bg-[#1a3a32] rounded-xl flex items-center justify-center text-[#c2a336] shadow-lg">
+                        <span className="font-black text-xs">{group.category.code || "ID"}</span>
+                    </div>
+                    <h2 className="text-xl font-black text-[#1a3a32] uppercase tracking-tight">
+                    {group.category.title}
+                    </h2>
+                </div>
+                <span className="px-3 py-1 bg-white border border-slate-200 text-slate-400 rounded-full text-[10px] font-black">
+                  {group.indicators.length} ITEMS
                 </span>
               </div>
 
-              {/* Responsive Container: Table on Desktop, Cards on Mobile */}
-              <div className="hidden md:block">
+              {/* Responsive Container */}
+              <div className="hidden lg:block">
                 <IndicatorsTable rows={group.indicators} getUserName={getUserName} />
               </div>
-              <div className="md:hidden space-y-4">
+              <div className="lg:hidden space-y-4">
                 {group.indicators.map(ind => (
                   <IndicatorMobileCard key={ind._id} row={ind} getUserName={getUserName} />
                 ))}
@@ -150,17 +154,16 @@ const SuperAdminIndicators: React.FC = () => {
         )}
       </main>
 
-      {/* Modal Overlay - Fullscreen on mobile, centered on desktop */}
+      {/* Form Modal */}
       {showForm && (
         <div 
-          className="fixed inset-0 bg-slate-900/80 backdrop-blur-md flex justify-center items-end md:items-start pt-0 md:pt-10 z-[100] p-0 md:p-4 overflow-y-auto"
+          className="fixed inset-0 bg-[#1a3a32]/40 backdrop-blur-sm flex justify-center items-center z-[100] p-4"
           onClick={() => setShowForm(false)}
         >
           <div 
-            className="bg-white w-full max-w-4xl rounded-t-[2.5rem] md:rounded-3xl shadow-2xl mb-0 md:mb-10 overflow-hidden animate-in slide-in-from-bottom md:zoom-in duration-300"
+            className="bg-white w-full max-w-4xl rounded-2xl shadow-2xl overflow-hidden animate-in zoom-in duration-200"
             onClick={(e) => e.stopPropagation()}
           >
-            <div className="h-1.5 w-12 bg-slate-200 rounded-full mx-auto mt-4 mb-2 md:hidden" />
             <SuperAdminForm onClose={() => setShowForm(false)} editData={editData} />
           </div>
         </div>
@@ -170,12 +173,12 @@ const SuperAdminIndicators: React.FC = () => {
 };
 
 /* ============================================================
-    STYLES HELPER
+    STATUS STYLING (Judiciary Palette)
 ============================================================ */
 const getStatusStyles = (status: string) => {
   const styles: Record<string, string> = {
     approved: "bg-emerald-50 text-emerald-700 border-emerald-100",
-    pending: "bg-amber-50 text-amber-700 border-amber-100",
+    pending: "bg-[#c2a336]/10 text-[#a88a2d] border-[#c2a336]/20",
     rejected: "bg-rose-50 text-rose-700 border-rose-100",
     overdue: "bg-slate-100 text-slate-700 border-slate-200",
   };
@@ -186,33 +189,33 @@ const getStatusStyles = (status: string) => {
     SUB-COMPONENT: MOBILE CARD
 ============================================================ */
 const IndicatorMobileCard = ({ row, getUserName }: { row: IIndicator; getUserName: any }) => (
-  <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm active:bg-slate-50 transition-colors">
-    <div className="flex justify-between items-start mb-3">
-      <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
-        {row.level2Category?.title || "No Subcategory"}
+  <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm hover:border-[#c2a336]/50 transition-all">
+    <div className="flex justify-between items-start mb-4">
+      <span className="px-2 py-1 bg-slate-50 text-slate-500 rounded text-[9px] font-black uppercase tracking-widest border border-slate-100">
+        {row.level2Category?.title || "Standard"}
       </span>
-      <span className={`px-2 py-0.5 text-[9px] font-black rounded-md border ${getStatusStyles(row.status)}`}>
-        {row.status.toUpperCase()}
+      <span className={`px-2 py-0.5 text-[9px] font-black rounded border uppercase tracking-widest ${getStatusStyles(row.status)}`}>
+        {row.status}
       </span>
     </div>
     
-    <h3 className="font-bold text-slate-900 mb-4 leading-snug">
+    <h3 className="font-bold text-[#1a3a32] mb-5 leading-snug">
       {row.indicatorTitle}
     </h3>
 
-    <div className="grid grid-cols-2 gap-4 pt-4 border-t border-slate-100">
+    <div className="grid grid-cols-2 gap-4 pt-4 border-t border-slate-50">
       <div>
-        <p className="text-[10px] text-slate-400 uppercase font-bold mb-1">Assigned To</p>
-        <div className="flex items-center gap-1.5 text-xs font-semibold text-slate-700">
-          {row.assignedToType === 'individual' ? <User size={12}/> : <Users size={12}/>}
-          <span className="truncate">{row.assignedToType === 'individual' ? getUserName(row.assignedTo) : 'Group'}</span>
+        <p className="text-[9px] text-slate-400 uppercase font-black tracking-tighter mb-1">Assigned Personnel</p>
+        <div className="flex items-center gap-2 text-xs font-bold text-slate-700">
+          <User size={12} className="text-[#c2a336]"/>
+          <span className="truncate">{row.assignedToType === 'individual' ? getUserName(row.assignedTo) : 'Registry Group'}</span>
         </div>
       </div>
       <div>
-        <p className="text-[10px] text-slate-400 uppercase font-bold mb-1">Timeline</p>
-        <div className="flex items-center gap-1.5 text-xs font-semibold text-slate-700">
-          <Clock size={12}/>
-          <span>{row.dueDate ? new Date(row.dueDate).toLocaleDateString() : 'N/A'}</span>
+        <p className="text-[9px] text-slate-400 uppercase font-black tracking-tighter mb-1">Due Date</p>
+        <div className="flex items-center gap-2 text-xs font-bold text-slate-700">
+          <Clock size={12} className="text-[#c2a336]"/>
+          <span className="tabular-nums">{row.dueDate ? new Date(row.dueDate).toLocaleDateString() : 'N/A'}</span>
         </div>
       </div>
     </div>
@@ -223,51 +226,51 @@ const IndicatorMobileCard = ({ row, getUserName }: { row: IIndicator; getUserNam
     SUB-COMPONENT: DESKTOP TABLE
 ============================================================ */
 const IndicatorsTable = ({ rows, getUserName }: { rows: IIndicator[]; getUserName: any }) => (
-  <div className="bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden">
+  <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
     <table className="w-full text-left border-collapse">
       <thead>
-        <tr className="bg-slate-50/80 border-b border-slate-200">
-          <th className="px-6 py-5 text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">Subcategory</th>
-          <th className="px-6 py-5 text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">Indicator Detail</th>
-          <th className="px-6 py-5 text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">Unit</th>
-          <th className="px-6 py-5 text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">Status</th>
-          <th className="px-6 py-5 text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">Assigned To</th>
-          <th className="px-6 py-5 text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">Due Date</th>
+        <tr className="bg-slate-50 border-b border-slate-200">
+          <th className="px-6 py-4 text-[9px] font-black text-slate-400 uppercase tracking-[0.2em]">Hierarchy</th>
+          <th className="px-6 py-4 text-[9px] font-black text-slate-400 uppercase tracking-[0.2em]">Indicator Metric</th>
+          <th className="px-6 py-4 text-[9px] font-black text-slate-400 uppercase tracking-[0.2em]">UOM</th>
+          <th className="px-6 py-4 text-[9px] font-black text-slate-400 uppercase tracking-[0.2em]">Status</th>
+          <th className="px-6 py-4 text-[9px] font-black text-slate-400 uppercase tracking-[0.2em]">Assignee</th>
+          <th className="px-6 py-4 text-[9px] font-black text-slate-400 uppercase tracking-[0.2em]">Deadline</th>
         </tr>
       </thead>
       <tbody className="divide-y divide-slate-100">
         {rows.map((row) => (
-          <tr key={row._id} className="group hover:bg-indigo-50/40 transition-colors cursor-pointer">
+          <tr key={row._id} className="group hover:bg-[#1a3a32]/[0.02] transition-colors cursor-pointer">
             <td className="px-6 py-5">
-              <span className="text-slate-500 text-xs font-medium bg-slate-100 px-2 py-1 rounded">
+              <span className="text-[10px] font-bold text-slate-500 uppercase tracking-tight">
                 {row.level2Category?.title || "—"}
               </span>
             </td>
             <td className="px-6 py-5">
-              <div className="font-bold text-slate-800 group-hover:text-indigo-700 transition-colors">
+              <div className="font-bold text-[#1a3a32] group-hover:text-[#c2a336] transition-colors leading-tight max-w-xs">
                 {row.indicatorTitle}
               </div>
             </td>
             <td className="px-6 py-5">
-              <span className="text-slate-600 text-xs font-bold">{row.unitOfMeasure}</span>
+              <span className="text-slate-500 text-[10px] font-black uppercase tracking-tighter">{row.unitOfMeasure}</span>
             </td>
             <td className="px-6 py-5">
-              <span className={`px-3 py-1 text-[10px] font-black rounded-full border ${getStatusStyles(row.status)}`}>
-                {row.status.toUpperCase()}
+              <span className={`px-2.5 py-1 text-[9px] font-black rounded-full border uppercase tracking-widest ${getStatusStyles(row.status)}`}>
+                {row.status}
               </span>
             </td>
             <td className="px-6 py-5">
-              <div className="flex items-center gap-2 text-slate-700 font-semibold text-xs">
+              <div className="flex items-center gap-2 text-[#1a3a32] font-bold text-xs">
                 {row.assignedToType === "individual" ? (
-                  <><User className="w-3.5 h-3.5 text-indigo-400" /> {getUserName(row.assignedTo)}</>
+                  <><User className="w-3.5 h-3.5 text-[#c2a336]" /> {getUserName(row.assignedTo)}</>
                 ) : (
-                  <><Users className="w-3.5 h-3.5 text-indigo-400" /> Group</>
+                  <><Users className="w-3.5 h-3.5 text-[#c2a336]" /> Registry Group</>
                 )}
               </div>
             </td>
             <td className="px-6 py-5">
               <div className="flex items-center gap-2 text-xs font-bold text-slate-600 tabular-nums">
-                <Clock className="w-3.5 h-3.5 text-slate-400" />
+                <Clock className="w-3.5 h-3.5 text-slate-300" />
                 {row.dueDate ? new Date(row.dueDate).toLocaleDateString() : 'N/A'}
               </div>
             </td>
