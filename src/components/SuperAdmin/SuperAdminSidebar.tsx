@@ -150,6 +150,16 @@ const SuperAdminSidebar = () => {
           inactiveClass={inactiveClass}
           linkClass={linkClass}
         />
+
+        <NavItem
+          to="/superadmin/notifications"
+          icon={<Settings size={18} />}
+          label="Notifications"
+          isCollapsed={isCollapsed}
+          activeClass={activeClass}
+          inactiveClass={inactiveClass}
+          linkClass={linkClass}
+        />
       </nav>
 
       {/* Footer */}

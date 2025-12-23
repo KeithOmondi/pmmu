@@ -1,109 +1,133 @@
-import { useState, useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Bell, Search, User, ChevronDown } from "lucide-react";
-import { useAppSelector, useAppDispatch } from "../../store/hooks";
+import { useAppDispatch, useAppSelector } from "../../store/hooks";
 import {
-  selectAllNotifications,
-  selectUnreadCount,
-  addNotification,
+  fetchAllNotifications,
   markNotificationAsRead,
+  addNotification,
+  selectNotifications,
+  selectUnreadCount,
 } from "../../store/slices/notificationsSlice";
+import type { Notification } from "../../store/slices/notificationsSlice";
 import { getSocket } from "../../utils/socket";
 
-const AdminHeader = () => {
+const AdminHeader: React.FC = () => {
   const dispatch = useAppDispatch();
+
   const [notifOpen, setNotifOpen] = useState(false);
-  const notifications = useAppSelector(selectAllNotifications);
-  const unreadCount = useAppSelector(selectUnreadCount);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
-  // Fetch all notifications on mount
+  /* =========================================================
+     REDUX STATE
+  ========================================================= */
+  const notifications = useAppSelector(selectNotifications);
+  const unreadCount = useAppSelector(selectUnreadCount);
+
+  /* =========================================================
+     INITIAL FETCH (Admin / SuperAdmin)
+  ========================================================= */
   useEffect(() => {
-    // replace with your thunk for fetching notifications
-    // e.g., dispatch(fetchAllNotifications());
+    dispatch(fetchAllNotifications());
   }, [dispatch]);
 
-  // Connect socket and listen for new notifications
+  /* =========================================================
+     SOCKET.IO – REALTIME UPDATES
+  ========================================================= */
   useEffect(() => {
     const socket = getSocket();
 
-    socket.on("connect", () => console.log("Socket connected:", socket.id));
-
-    socket.on("newNotification", (notif: any) => {
-      dispatch(addNotification(notif));
+    socket.on("connect", () => {
+      console.log("🔔 Notifications socket connected:", socket.id);
     });
 
-    socket.on("indicator:event", (notif: any) => {
-      dispatch(addNotification(notif));
+    socket.on("newNotification", (notification: Notification) => {
+      dispatch(addNotification(notification));
     });
 
     return () => {
       socket.off("newNotification");
-      socket.off("indicator:event");
     };
   }, [dispatch]);
 
-  // Close dropdown if clicked outside
+  /* =========================================================
+     CLICK OUTSIDE DROPDOWN
+  ========================================================= */
   useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
-      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) {
         setNotifOpen(false);
       }
     };
+
     document.addEventListener("mousedown", handleClickOutside);
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
-  // Mark notification as read when clicked
-  const handleNotificationClick = (id: string) => {
-    dispatch(markNotificationAsRead(id));
+  /* =========================================================
+     MARK AS READ
+  ========================================================= */
+  const handleNotificationClick = (notification: Notification) => {
+    if (!notification.read) {
+      dispatch(markNotificationAsRead(notification._id));
+    }
+    setNotifOpen(false);
   };
 
+  /* =========================================================
+     RENDER
+  ========================================================= */
   return (
     <header className="h-20 bg-white border-b border-slate-200 px-8 flex items-center justify-between sticky top-0 z-30">
-      {/* Search bar */}
+      {/* 🔍 Search */}
       <div className="hidden md:flex items-center relative w-96">
         <Search className="absolute left-3 text-slate-400" size={18} />
         <input
           type="text"
-          placeholder="Search records, files, or users..."
-          className="w-full pl-10 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#c2a336]/20 focus:border-[#c2a336] transition-all"
+          placeholder="Search records, users, or indicators..."
+          className="w-full pl-10 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#c2a336]/20"
         />
       </div>
 
-      {/* Right side actions */}
+      {/* Right Actions */}
       <div className="flex items-center gap-4 ml-auto relative">
-        {/* Notifications */}
+        {/* 🔔 Notifications */}
         <div className="relative" ref={dropdownRef}>
           <button
-            className="relative p-2.5 text-slate-500 hover:bg-slate-50 hover:text-[#1a3a32] rounded-xl transition-all"
-            onClick={() => setNotifOpen(!notifOpen)}
+            onClick={() => setNotifOpen((o) => !o)}
+            className="relative p-2.5 text-slate-500 hover:bg-slate-50 rounded-xl"
           >
             <Bell size={20} />
             {unreadCount > 0 && (
-              <span className="absolute top-2.5 right-2.5 w-2 h-2 bg-rose-500 rounded-full border-2 border-white"></span>
+              <span className="absolute top-2 right-2 w-2.5 h-2.5 bg-rose-500 rounded-full border-2 border-white" />
             )}
           </button>
 
           {notifOpen && (
-            <div className="absolute right-0 mt-2 w-96 max-h-96 overflow-y-auto bg-white border border-slate-200 rounded-lg shadow-lg z-50">
+            <div className="absolute right-0 mt-2 w-96 max-h-96 overflow-y-auto bg-white border border-slate-200 rounded-xl shadow-lg z-50">
               {notifications.length === 0 ? (
                 <p className="p-4 text-sm text-slate-500">No notifications</p>
               ) : (
                 notifications.map((n) => (
                   <div
                     key={n._id}
-                    onClick={() => handleNotificationClick(n._id)}
-                    className={`p-3 border-b last:border-b-0 cursor-pointer hover:bg-slate-50 ${
-                      !n.read ? "bg-slate-100" : ""
+                    onClick={() => handleNotificationClick(n)}
+                    className={`p-3 border-b last:border-b-0 cursor-pointer transition ${
+                      n.read ? "bg-white hover:bg-slate-50" : "bg-slate-100 hover:bg-slate-200"
                     }`}
                   >
-                    <p className="text-sm font-semibold">{n.title}</p>
-                    <p className="text-xs text-slate-500">{n.message}</p>
+                    <p className="text-sm font-semibold text-slate-800">{n.title}</p>
+                    <p className="text-xs text-slate-600 mt-0.5">{n.message}</p>
+
+                    {/* ✅ Show submitter name instead of ID */}
                     {n.submittedBy && (
                       <p className="text-[10px] text-slate-400 mt-1">
                         Submitted by: {n.submittedBy.name}
                       </p>
                     )}
+
+                    <p className="text-[10px] text-slate-400 mt-1">
+                      {new Date(n.createdAt).toLocaleString()}
+                    </p>
                   </div>
                 ))
               )}
@@ -111,28 +135,21 @@ const AdminHeader = () => {
           )}
         </div>
 
-        {/* User Profile */}
-        <div className="flex items-center gap-3 pl-2 group cursor-pointer">
+        {/* 👤 Profile */}
+        <div className="flex items-center gap-3 pl-2 cursor-pointer">
           <div className="text-right hidden sm:block">
-            <p className="text-xs font-black text-[#1a3a32] uppercase tracking-tight">
-              System Admin
-            </p>
-            <p className="text-[10px] text-[#c2a336] font-bold">
-              Registry Dept.
-            </p>
+            <p className="text-xs font-black text-[#1a3a32] uppercase">Super Admin</p>
+            <p className="text-[10px] text-[#c2a336] font-bold">Registry Department</p>
           </div>
 
           <div className="relative">
-            <div className="w-10 h-10 bg-[#1a3a32] rounded-xl flex items-center justify-center text-[#c2a336] shadow-md group-hover:scale-105 transition-transform">
+            <div className="w-10 h-10 bg-[#1a3a32] rounded-xl flex items-center justify-center text-[#c2a336]">
               <User size={20} />
             </div>
-            <div className="absolute -bottom-0.5 -right-0.5 w-3.5 h-3.5 bg-emerald-500 border-2 border-white rounded-full"></div>
+            <span className="absolute -bottom-0.5 -right-0.5 w-3.5 h-3.5 bg-emerald-500 border-2 border-white rounded-full" />
           </div>
 
-          <ChevronDown
-            size={14}
-            className="text-slate-400 group-hover:text-[#1a3a32] transition-colors"
-          />
+          <ChevronDown size={14} className="text-slate-400" />
         </div>
       </div>
     </header>

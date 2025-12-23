@@ -32,6 +32,7 @@ import UserDashboard from "./pages/User/UserDashboard";
 import UserIndicators from "./pages/User/UserIndicators";
 import UserIndicatorDetail from "./pages/User/UserIndicatorDetail";
 import UserProfile from "./pages/User/UserProfile";
+import SuperAdminNotificationComposer from "./pages/SuperAdmin/SuperAdminNotificationComposer";
 
 const App = () => {
   const dispatch = useAppDispatch();
@@ -77,6 +78,7 @@ const App = () => {
             <Route path="users" element={<SuperAdminUser />} />
             <Route path="approved" element={<SuperAdminApproved />} />
             <Route path="reports" element={<SuperAdminReports />} />
+            <Route path="notifications" element={<SuperAdminNotificationComposer />} />
           </Route>
         </Route>
 

@@ -6,41 +6,58 @@ import {
 import api from "../../api/axios";
 import type { RootState } from "../store";
 
+/* =========================================================
+   TYPES
+========================================================= */
+
 export interface Notification {
   _id: string;
+  user?: string;
   title: string;
   message: string;
   read: boolean;
+  type?: "system" | "task" | "direct";
   createdAt: string;
-  submittedBy?: { _id: string; name: string }; // Added submittedBy
+  submittedBy?: {
+    _id: string;
+    name: string;
+    email?: string;
+  };
+  metadata?: Record<string, any>;
 }
 
 interface NotificationsState {
   notifications: Notification[];
   loading: boolean;
+  sending: boolean; // 🔹 sending messages (SuperAdmin)
   error: string | null;
+  successMessage: string | null;
 }
+
+/* =========================================================
+   INITIAL STATE
+========================================================= */
 
 const initialState: NotificationsState = {
   notifications: [],
   loading: false,
+  sending: false,
   error: null,
+  successMessage: null,
 };
 
-// --------------------
-// Thunks
-// --------------------
+/* =========================================================
+   THUNKS – FETCH
+========================================================= */
 
-// Fetch current user's notifications
+// User inbox
 export const fetchMyNotifications = createAsyncThunk<
   Notification[],
   void,
   { rejectValue: string }
->("notifications/fetchMyNotifications", async (_, { rejectWithValue }) => {
+>("notifications/fetchMy", async (_, { rejectWithValue }) => {
   try {
-    const { data } = await api.get<{ notifications: Notification[] }>(
-      "/notifications/my"
-    );
+    const { data } = await api.get("/notifications/my");
     return data.notifications;
   } catch (err: any) {
     return rejectWithValue(
@@ -49,16 +66,14 @@ export const fetchMyNotifications = createAsyncThunk<
   }
 });
 
-// Fetch all notifications (Admin)
+// Admin / SuperAdmin
 export const fetchAllNotifications = createAsyncThunk<
   Notification[],
   void,
   { rejectValue: string }
->("notifications/fetchAllNotifications", async (_, { rejectWithValue }) => {
+>("notifications/fetchAll", async (_, { rejectWithValue }) => {
   try {
-    const { data } = await api.get<{ notifications: Notification[] }>(
-      "/notifications/all"
-    );
+    const { data } = await api.get("/notifications/all");
     return data.notifications;
   } catch (err: any) {
     return rejectWithValue(
@@ -67,25 +82,91 @@ export const fetchAllNotifications = createAsyncThunk<
   }
 });
 
-// Mark notification as read
+/* =========================================================
+   THUNKS – READ
+========================================================= */
+
 export const markNotificationAsRead = createAsyncThunk<
-  string, // notification id
+  string,
   string,
   { rejectValue: string }
->("notifications/markAsRead", async (id, { rejectWithValue }) => {
+>("notifications/markRead", async (id, { rejectWithValue }) => {
   try {
     await api.patch(`/notifications/mark/${id}/read`);
     return id;
   } catch (err: any) {
     return rejectWithValue(
-      err.response?.data?.message || "Failed to mark notification as read"
+      err.response?.data?.message || "Failed to mark as read"
     );
   }
 });
 
-// --------------------
-// Slice
-// --------------------
+/* =========================================================
+   THUNKS – SUPER ADMIN SEND
+========================================================= */
+
+// Broadcast
+export const broadcastNotification = createAsyncThunk<
+  void,
+  { title: string; message: string },
+  { rejectValue: string }
+>("notifications/broadcast", async (payload, { rejectWithValue }) => {
+  try {
+    await api.post("/notifications/broadcast", payload);
+  } catch (err: any) {
+    return rejectWithValue(err.response?.data?.message || "Broadcast failed");
+  }
+});
+
+// Single user
+export const sendNotificationToUser = createAsyncThunk<
+  void,
+  { userId: string; title: string; message: string },
+  { rejectValue: string }
+>("notifications/sendUser", async (payload, { rejectWithValue }) => {
+  try {
+    await api.post("/notifications/send/user", payload);
+  } catch (err: any) {
+    return rejectWithValue(
+      err.response?.data?.message || "Failed to send message"
+    );
+  }
+});
+
+// Group
+export const sendNotificationToGroup = createAsyncThunk<
+  void,
+  { userIds: string[]; title: string; message: string },
+  { rejectValue: string }
+>("notifications/sendGroup", async (payload, { rejectWithValue }) => {
+  try {
+    await api.post("/notifications/send/group", payload);
+  } catch (err: any) {
+    return rejectWithValue(
+      err.response?.data?.message || "Failed to send group message"
+    );
+  }
+});
+
+// By criteria (role / department)
+export const sendNotificationByCriteria = createAsyncThunk<
+  void,
+  { role?: string; department?: string; title: string; message: string },
+  { rejectValue: string }
+>("notifications/sendCriteria", async (payload, { rejectWithValue }) => {
+  try {
+    await api.post("/notifications/send/criteria", payload);
+  } catch (err: any) {
+    return rejectWithValue(
+      err.response?.data?.message || "Failed to send notification"
+    );
+  }
+});
+
+/* =========================================================
+   SLICE
+========================================================= */
+
 const notificationsSlice = createSlice({
   name: "notifications",
   initialState,
@@ -93,72 +174,101 @@ const notificationsSlice = createSlice({
     clearNotificationsError(state) {
       state.error = null;
     },
+    clearNotificationsSuccess(state) {
+      state.successMessage = null;
+    },
+    // 🔹 Used by socket.io real-time events
     addNotification(state, action: PayloadAction<Notification>) {
       state.notifications.unshift(action.payload);
     },
   },
   extraReducers: (builder) => {
-    // Pending / Rejected common handlers
-    const pendingHandler = (state: NotificationsState) => {
-      state.loading = true;
-      state.error = null;
-    };
-    const rejectedHandler = (
-      state: NotificationsState,
-      action: PayloadAction<any>
-    ) => {
-      state.loading = false;
-      state.error = action.payload ?? "Something went wrong";
-    };
-
+    /* ---------- Fetch ---------- */
     builder
-      // Fetch My Notifications
-      .addCase(fetchMyNotifications.pending, pendingHandler)
+      .addCase(fetchMyNotifications.pending, (state) => {
+        state.loading = true;
+      })
       .addCase(fetchMyNotifications.fulfilled, (state, action) => {
         state.loading = false;
         state.notifications = action.payload;
       })
-      .addCase(fetchMyNotifications.rejected, rejectedHandler)
-
-      // Fetch All Notifications (Admin)
-      .addCase(fetchAllNotifications.pending, pendingHandler)
       .addCase(fetchAllNotifications.fulfilled, (state, action) => {
         state.loading = false;
         state.notifications = action.payload;
-      })
-      .addCase(fetchAllNotifications.rejected, rejectedHandler)
+      });
 
-      // Mark As Read
-      .addCase(
-        markNotificationAsRead.fulfilled,
-        (state, action: PayloadAction<string>) => {
-          const notif = state.notifications.find(
-            (n) => n._id === action.payload
-          );
-          if (notif) notif.read = true;
+    /* ---------- Read ---------- */
+    builder.addCase(markNotificationAsRead.fulfilled, (state, action) => {
+      const notif = state.notifications.find((n) => n._id === action.payload);
+      if (notif) notif.read = true;
+    });
+
+    /* ---------- Send (SuperAdmin) ---------- */
+    builder
+      .addMatcher(
+        (a) =>
+          a.type.startsWith("notifications/send") ||
+          a.type.includes("broadcast"),
+        (state) => {
+          state.sending = true;
+          state.error = null;
+          state.successMessage = null;
+        }
+      )
+      .addMatcher(
+        (a) =>
+          (a.type.startsWith("notifications/send") ||
+            a.type.includes("broadcast")) &&
+          a.type.endsWith("/fulfilled"),
+        (state) => {
+          state.sending = false;
+          state.successMessage = "Notification sent successfully";
         }
       );
+
+    /* ---------- Errors ---------- */
+    builder.addMatcher(
+      (a) =>
+        a.type.startsWith("notifications/") && a.type.endsWith("/rejected"),
+      (state, action: PayloadAction<any>) => {
+        state.loading = false;
+        state.sending = false;
+        state.error = action.payload ?? "Something went wrong";
+      }
+    );
   },
 });
 
-export const { clearNotificationsError, addNotification } =
-  notificationsSlice.actions;
+/* =========================================================
+   EXPORTS
+========================================================= */
+
+export const {
+  clearNotificationsError,
+  clearNotificationsSuccess,
+  addNotification,
+} = notificationsSlice.actions;
 
 export default notificationsSlice.reducer;
 
-// --------------------
-// Selectors
-// --------------------
-export const selectAllNotifications = (state: RootState) =>
+/* =========================================================
+   SELECTORS
+========================================================= */
+
+export const selectNotifications = (state: RootState) =>
   state.notifications.notifications;
 
 export const selectUnreadCount = (state: RootState) =>
-  Array.isArray(state.notifications.notifications)
-    ? state.notifications.notifications.filter((n) => !n.read).length
-    : 0;
+  state.notifications.notifications.filter((n) => !n.read).length;
 
 export const selectNotificationsLoading = (state: RootState) =>
   state.notifications.loading;
 
+export const selectNotificationsSending = (state: RootState) =>
+  state.notifications.sending;
+
 export const selectNotificationsError = (state: RootState) =>
   state.notifications.error;
+
+export const selectNotificationsSuccess = (state: RootState) =>
+  state.notifications.successMessage;
