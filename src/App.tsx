@@ -37,6 +37,7 @@ import NotificationsListener from "./components/Notifications/NotificationsListe
 import UserReport from "./pages/User/UserReports";
 import AdminReports from "./pages/Admin/AdminReports";
 import AdminSettings from "./pages/Admin/AdminSettings";
+import SuperAdminSettings from "./pages/SuperAdmin/SuperAdminSettings";
 
 const App = () => {
   const dispatch = useAppDispatch();
@@ -91,6 +92,7 @@ const App = () => {
             <Route path="approved" element={<SuperAdminApproved />} />
             <Route path="reports" element={<SuperAdminReports />} />
             <Route path="notifications" element={<SuperAdminNotificationComposer />} />
+            <Route path="settings" element={<SuperAdminSettings />} />
           </Route>
         </Route>
 
