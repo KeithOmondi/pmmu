@@ -4,7 +4,6 @@ import {
   LayoutDashboard,
   ClipboardList,
   Users,
-  UserCog,
   Settings,
   Gavel,
   LogOut,
@@ -113,15 +112,6 @@ const SuperAdminSidebar = () => {
           to="/superadmin/users"
           icon={<Users size={18} />}
           label="System Users"
-          isCollapsed={isCollapsed}
-          activeClass={activeClass}
-          inactiveClass={inactiveClass}
-          linkClass={linkClass}
-        />
-        <NavItem
-          to="/superadmin/admins"
-          icon={<UserCog size={18} />}
-          label="Admin Staff"
           isCollapsed={isCollapsed}
           activeClass={activeClass}
           inactiveClass={inactiveClass}

@@ -331,7 +331,7 @@ const UserIndicators: React.FC = () => {
               <ShieldCheck size={14} />
               Performance Portfolio
             </div>
-            <h1 className="text-3xl md:text-5xl font-black text-[#1a3a32] tracking-tighter leading-tight">
+            <h1 className="text-3xl md:text-3xl font-black text-[#1a3a32] tracking-tighter leading-tight">
               Personnel Records
             </h1>
           </div>
@@ -339,7 +339,7 @@ const UserIndicators: React.FC = () => {
             <div className="bg-[#1a3a32] text-white px-6 md:px-8 py-3 md:py-4 rounded-2xl md:rounded-[2rem] shadow-xl shadow-[#1a3a32]/10 flex-1 md:flex-none md:min-w-[160px]">
               <div className="flex items-center gap-2 text-[#c2a336] text-[9px] md:text-[10px] font-black uppercase tracking-widest mb-0.5 md:mb-1">
                 <TrendingUp size={12} />
-                Mandates
+                Task(s)
               </div>
               <p className="text-2xl md:text-3xl font-black">
                 {indicators.length}

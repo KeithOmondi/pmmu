@@ -34,6 +34,9 @@ import UserIndicatorDetail from "./pages/User/UserIndicatorDetail";
 import UserProfile from "./pages/User/UserProfile";
 import SuperAdminNotificationComposer from "./pages/SuperAdmin/SuperAdminNotificationComposer";
 import NotificationsListener from "./components/Notifications/NotificationsListener";
+import UserReport from "./pages/User/UserReports";
+import AdminReports from "./pages/Admin/AdminReports";
+import AdminSettings from "./pages/Admin/AdminSettings";
 
 const App = () => {
   const dispatch = useAppDispatch();
@@ -98,6 +101,8 @@ const App = () => {
             <Route path="indicators" element={<AdminIndicators />} />
             <Route path="indicators/:id" element={<AdminIndicatorDetail />} />
             <Route path="submitted" element={<SubmittedIndicators />} />
+            <Route path="reports" element={<AdminReports />} />
+            <Route path="settings" element={<AdminSettings />} />
             <Route
               path="submitted/:id"
               element={<SubmittedIndicatorDetail />}
@@ -112,6 +117,7 @@ const App = () => {
             <Route path="indicators" element={<UserIndicators />} />
             <Route path="indicators/:id" element={<UserIndicatorDetail />} />
             <Route path="profile" element={<UserProfile />} />
+            <Route path="reports" element={<UserReport />} />
           </Route>
         </Route>
 

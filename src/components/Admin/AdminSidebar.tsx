@@ -136,15 +136,6 @@ const AdminSidebar = () => {
               inactiveClass={inactiveClass}
               linkClass={linkClass}
             />
-            <SidebarLink
-              to="/admin/reports"
-              icon={<BarChart3 size={18} />}
-              label="Reports"
-              isCollapsed={isCollapsed}
-              activeClass={activeClass}
-              inactiveClass={inactiveClass}
-              linkClass={linkClass}
-            />
           </div>
 
           <div className={`my-6 border-t border-white/5 pt-6 ${isCollapsed ? "px-0" : ""}`}>
@@ -157,6 +148,16 @@ const AdminSidebar = () => {
               to="/admin/settings"
               icon={<Settings size={18} />}
               label="Settings"
+              isCollapsed={isCollapsed}
+              activeClass={activeClass}
+              inactiveClass={inactiveClass}
+              linkClass={linkClass}
+            />
+
+            <SidebarLink
+              to="/admin/reports"
+              icon={<BarChart3 size={18} />}
+              label="Reports"
               isCollapsed={isCollapsed}
               activeClass={activeClass}
               inactiveClass={inactiveClass}

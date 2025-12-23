@@ -26,6 +26,7 @@ import {
   Download,
   Eye,
   ChevronRight,
+  ShieldCheck,
   X,
   FileText,
   Globe,
@@ -33,7 +34,7 @@ import {
 import { isWithinInterval, startOfQuarter, endOfQuarter } from "date-fns";
 import toast from "react-hot-toast";
 
-const SuperAdminReports: React.FC = () => {
+const AdminReports: React.FC = () => {
   const dispatch = useAppDispatch();
 
   // --- Selectors ---
@@ -51,26 +52,26 @@ const SuperAdminReports: React.FC = () => {
   const [searchQuery, setSearchQuery] = useState("");
   const [isPreviewOpen, setIsPreviewOpen] = useState(false);
 
-  // Fetch all indicators (unrestricted) on mount
+  // CRITICAL: Fetch ALL indicators for administrative oversight
   useEffect(() => {
     dispatch(fetchAllIndicatorsForAdmin());
   }, [dispatch]);
 
-  // --- PDF Download Effect ---
+  // --- PDF Blob Handler ---
   useEffect(() => {
     if (lastPdfBlob) {
       const url = window.URL.createObjectURL(lastPdfBlob);
       const link = document.createElement("a");
       link.href = url;
-      link.download = `Global_Executive_Report_${reportType}_${Date.now()}.pdf`;
+      link.download = `Admin_Global_Report_${reportType}_${Date.now()}.pdf`;
       link.click();
       window.URL.revokeObjectURL(url);
       dispatch(clearPdf());
-      toast.success("Global Executive PDF Generated");
+      toast.success("Full Organizational Report Downloaded");
     }
   }, [lastPdfBlob, dispatch, reportType]);
 
-  // --- Global Filter Logic ---
+  // --- Administrative Filter Logic ---
   const filteredIndicators = useMemo(() => {
     const now = new Date();
     let base = [...indicators];
@@ -119,11 +120,10 @@ const SuperAdminReports: React.FC = () => {
     [filteredIndicators]
   );
 
-  // --- Unrestricted Handlers ---
+  // --- Global Reporting Handlers ---
   const handlePreview = async () => {
     try {
-      // By sending 'undefined' for ID, the backend (aware of Admin role)
-      // skips the personal user filter and pulls global data.
+      // id: undefined tells the backend to pull global data for Admins
       await dispatch(
         fetchReportHtml({
           type: reportType,
@@ -132,7 +132,9 @@ const SuperAdminReports: React.FC = () => {
       ).unwrap();
       setIsPreviewOpen(true);
     } catch (err) {
-      toast.error("Failed to compile global preview.");
+      toast.error(
+        "Global compilation failed. Ensure your account has Admin clearance."
+      );
     }
   };
 
@@ -146,23 +148,25 @@ const SuperAdminReports: React.FC = () => {
   };
 
   if (loadingIndicators)
-    return <LoadingScreen message="Accessing Secure Registry..." />;
+    return <LoadingScreen message="Unlocking Global Registry..." />;
 
   return (
     <div className="min-h-screen p-6 lg:p-10 bg-[#f8fafc] space-y-8 animate-in fade-in duration-700">
+      {/* Visual Accent */}
       <div className="fixed top-0 right-0 w-1/3 h-1/3 bg-[#1a3a32]/5 blur-[120px] -z-10 rounded-full" />
 
-      {/* Header */}
+      {/* Admin Header */}
       <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-8 bg-white p-8 rounded-[2.5rem] shadow-xl shadow-black/5 border border-white">
         <div>
-          <div className="flex items-center gap-2 text-[#c2a336] mb-2 font-bold uppercase tracking-[0.3em] text-[7px]">
-            <Globe size={14} className="animate-pulse" /> Super Admin Oversight
+          <div className="flex items-center gap-2 text-[#c2a336] mb-2 font-bold uppercase tracking-[0.3em] text-[10px]">
+            <ShieldCheck size={14} className="animate-pulse" /> Administrative
+            Access Enabled
           </div>
-          <h1 className="text-3xl font-black text-[#1a3a32] tracking-tight">
-            Reports Dashboard <span className="text-[#c2a336]">.</span>
+          <h1 className="text-4xl font-black text-[#1a3a32] tracking-tight">
+            Admin Reports <span className="text-[#c2a336]">.</span>
           </h1>
           <p className="text-slate-500 text-sm font-medium mt-1">
-            View and Download Reports
+            Global monitoring and cross-departmental performance verification.
           </p>
         </div>
 
@@ -170,49 +174,49 @@ const SuperAdminReports: React.FC = () => {
           <ActionButton
             onClick={handlePreview}
             icon={<Eye size={18} />}
-            label="Global Preview"
+            label="Full Preview"
             variant="secondary"
             loading={loadingReport}
           />
           <ActionButton
             onClick={handleDownload}
             icon={<Download size={18} />}
-            label="Full PDF Export"
+            label="Export Global PDF"
             variant="primary"
             loading={loadingReport}
           />
         </div>
       </div>
 
-      {/* Stats Dashboard */}
+      {/* Global Metrics */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
         <StatCard
-          label="Total Records"
+          label="Global Volume"
           value={stats.total}
-          icon={<Briefcase />}
+          icon={<Globe />}
           color="blue"
         />
         <StatCard
-          label="Average Completion"
+          label="Org. Efficiency"
           value={`${stats.avgProgress}%`}
           icon={<BarChart3 />}
           color="emerald"
         />
         <StatCard
-          label="Completed Task(s)"
+          label="Total Approved"
           value={stats.completed}
           icon={<CheckCircle2 />}
           color="amber"
         />
         <StatCard
-          label="Pending Task(s)"
+          label="Total Pending"
           value={stats.pending}
           icon={<AlertCircle />}
           color="rose"
         />
       </div>
 
-      {/* Search & Global Filters */}
+      {/* Search & Broad Filters */}
       <div className="grid grid-cols-1 xl:grid-cols-3 gap-6 items-center">
         <div className="xl:col-span-2 flex flex-wrap gap-4 bg-white p-4 rounded-[1.5rem] shadow-sm border border-slate-100">
           <div className="relative flex-1 min-w-[240px]">
@@ -222,7 +226,7 @@ const SuperAdminReports: React.FC = () => {
             />
             <input
               type="text"
-              placeholder="Search all department records..."
+              placeholder="Search across all users and groups..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               className="w-full pl-12 pr-4 py-3 bg-slate-50 border-none rounded-xl text-sm font-semibold focus:ring-2 focus:ring-[#c2a336]/20 transition-all"
@@ -236,11 +240,11 @@ const SuperAdminReports: React.FC = () => {
               onChange={(e) => setReportType(e.target.value as ReportType)}
               className="bg-transparent border-none text-sm font-bold text-[#1a3a32] focus:ring-0 cursor-pointer py-3"
             >
-              <option value="general">General Report</option>
-              <option value="weekly">Weekly Report</option>
-              <option value="quarterly">Quarterly Report</option>
-              <option value="group">Units of Measure</option>
-              <option value="single">Single Report</option>
+              <option value="general">Global Summary</option>
+              <option value="weekly">Global Weekly</option>
+              <option value="quarterly">Global Quarterly</option>
+              <option value="group">Departmental Units</option>
+              <option value="single">Isolated Record</option>
             </select>
           </div>
         </div>
@@ -252,7 +256,7 @@ const SuperAdminReports: React.FC = () => {
               onChange={(e) => setSelectedIndicatorId(e.target.value)}
               className="w-full p-4 bg-white border border-[#c2a336]/30 rounded-2xl text-sm font-bold text-[#1a3a32] shadow-lg shadow-[#c2a336]/5"
             >
-              <option value="">Select Target...</option>
+              <option value="">Choose specific indicator...</option>
               {indicators.map((i) => (
                 <option key={i._id} value={i._id}>
                   {i.indicatorTitle}
@@ -265,7 +269,7 @@ const SuperAdminReports: React.FC = () => {
 
       <IndicatorsTable indicators={filteredIndicators} />
 
-      {/* Preview Modal */}
+      {/* Global Preview Modal */}
       {isPreviewOpen && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 lg:p-12 overflow-hidden">
           <div
@@ -280,10 +284,10 @@ const SuperAdminReports: React.FC = () => {
                 </div>
                 <div>
                   <h3 className="font-black text-[#1a3a32] text-xl tracking-tighter uppercase">
-                    Global Master Record
+                    Organizational Master Preview
                   </h3>
-                  <p className="text-[10px] text-slate-400 font-black uppercase tracking-widest underline decoration-[#c2a336]">
-                    Admin Exclusive View
+                  <p className="text-[10px] text-slate-400 font-black uppercase tracking-widest">
+                    Unrestricted Admin View
                   </p>
                 </div>
               </div>
@@ -292,7 +296,7 @@ const SuperAdminReports: React.FC = () => {
                   onClick={handleDownload}
                   className="flex items-center gap-2 px-6 py-3 bg-[#1a3a32] text-white rounded-xl font-black text-[10px] uppercase tracking-widest hover:bg-[#2a5a4d] transition-all"
                 >
-                  <Download size={14} /> Commit to PDF
+                  <Download size={14} /> Download PDF
                 </button>
                 <button
                   onClick={() => setIsPreviewOpen(false)}
@@ -314,7 +318,7 @@ const SuperAdminReports: React.FC = () => {
                   <div className="flex flex-col items-center justify-center py-32">
                     <Loader2 className="w-12 h-12 animate-spin text-[#c2a336] mb-4" />
                     <p className="text-xs font-black text-slate-400 uppercase tracking-widest">
-                      Aggregating Institutional Data...
+                      Aggregating Global Data...
                     </p>
                   </div>
                 )}
@@ -327,7 +331,7 @@ const SuperAdminReports: React.FC = () => {
   );
 };
 
-// --- Sub-Components (Unchanged UI, enhanced for clarity) ---
+// --- Helper Components ---
 
 const ActionButton = ({ onClick, icon, label, variant, loading }: any) => {
   const styles =
@@ -385,17 +389,17 @@ const IndicatorsTable = ({ indicators }: { indicators: IIndicator[] }) => (
       <table className="w-full text-left">
         <thead>
           <tr className="bg-[#1a3a32] text-white/50 text-[9px] font-black uppercase tracking-[0.2em]">
-            <th className="px-8 py-5">Indicator</th>
-            <th className="px-8 py-5">Ownership</th>
-            <th className="px-8 py-5 text-center">Audit Status</th>
-            <th className="px-8 py-5 text-right">Performance</th>
+            <th className="px-8 py-5">Global Indicator</th>
+            <th className="px-8 py-5">Assignment Scope</th>
+            <th className="px-8 py-5 text-center">Status</th>
+            <th className="px-8 py-5 text-right">Progress</th>
           </tr>
         </thead>
         <tbody className="divide-y divide-slate-50">
           {indicators.map((i) => (
             <tr
               key={i._id}
-              className="hover:bg-slate-50/80 transition-all group cursor-pointer"
+              className="hover:bg-slate-50/80 transition-all group"
             >
               <td className="px-8 py-6">
                 <div className="font-bold text-[#1a3a32] text-sm group-hover:text-[#c2a336] transition-colors">
@@ -403,7 +407,7 @@ const IndicatorsTable = ({ indicators }: { indicators: IIndicator[] }) => (
                 </div>
                 <div className="text-[10px] text-slate-400 font-bold uppercase mt-1 flex items-center gap-2">
                   <ChevronRight size={10} className="text-[#c2a336]" />{" "}
-                  {i.category?.title || "General Registry"}
+                  {i.category?.title || "Org. Registry"}
                 </div>
               </td>
               <td className="px-8 py-6">
@@ -478,4 +482,4 @@ const LoadingScreen = ({ message }: { message: string }) => (
   </div>
 );
 
-export default SuperAdminReports;
+export default AdminReports;

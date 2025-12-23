@@ -121,9 +121,9 @@ const UserSidebar = () => {
           inactiveClass={inactiveClass}
         />
         <SidebarLink
-          to="/user/settings"
+          to="/user/reports"
           icon={<Settings size={18} />}
-          label="System Access"
+          label="Reports"
           isCollapsed={isCollapsed}
           baseClass={linkClass}
           activeClass={activeClass}

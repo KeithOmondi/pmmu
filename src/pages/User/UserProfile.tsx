@@ -62,8 +62,8 @@ const UserProfile: React.FC = () => {
             <Shield size={14} />
             Secure Registry
           </div>
-          <h1 className="text-4xl font-black text-[#1a3a32] tracking-tighter">
-            Personnel Profile
+          <h1 className="text-3xl font-black text-[#1a3a32] tracking-tighter">
+            User Profile
           </h1>
         </div>
 
@@ -84,11 +84,11 @@ const UserProfile: React.FC = () => {
                 {user.name}
               </h2>
               <p className="text-[#c2a336] text-[10px] font-black uppercase tracking-[0.2em] mt-1">
-                Official {user.role} Account
+                {user.role}
               </p>
               <div className="mt-4 inline-flex items-center gap-2 px-3 py-1 bg-white/5 rounded-full border border-white/10 text-white/60 text-[10px] font-bold">
                 <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-                Registry Connected
+                Online
               </div>
             </div>
           </div>

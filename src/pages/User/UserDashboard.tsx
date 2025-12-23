@@ -41,7 +41,7 @@ const UserDashboard: React.FC = () => {
 
   const stats = [
     {
-      label: "Active Mandates",
+      label: "Active Task(s)",
       value: activeMandates,
       icon: <ShieldCheck size={20} />,
       color: "bg-[#1a3a32] text-[#c2a336]",
@@ -53,7 +53,7 @@ const UserDashboard: React.FC = () => {
       color: "bg-[#f4f0e6] text-[#c2a336]",
     },
     {
-      label: "Ratified",
+      label: "Approved",
       value: ratified,
       icon: <CheckCircle2 size={20} />,
       color: "bg-emerald-50 text-emerald-700",
@@ -73,13 +73,13 @@ const UserDashboard: React.FC = () => {
         <header className="mb-10">
           <div className="flex items-center gap-2 text-[#c2a336] text-[10px] font-black uppercase tracking-[0.3em] mb-2">
             <Zap size={14} fill="currentColor" />
-            Operational Briefing
+            Operational Overview
           </div>
-          <h1 className="text-4xl md:text-5xl font-black text-[#1a3a32] tracking-tighter">
-            Executive Desk
+          <h1 className="text-2xl md:text-3xl font-black text-[#1a3a32] tracking-tighter">
+            User Dashboard
           </h1>
           <p className="text-gray-500 font-medium mt-2">
-            Welcome back, Officer. Here is your current standing.
+            Welcome back
           </p>
         </header>
 
