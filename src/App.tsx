@@ -33,6 +33,7 @@ import UserIndicators from "./pages/User/UserIndicators";
 import UserIndicatorDetail from "./pages/User/UserIndicatorDetail";
 import UserProfile from "./pages/User/UserProfile";
 import SuperAdminNotificationComposer from "./pages/SuperAdmin/SuperAdminNotificationComposer";
+import NotificationsListener from "./components/Notifications/NotificationsListener";
 
 const App = () => {
   const dispatch = useAppDispatch();
@@ -52,6 +53,13 @@ const App = () => {
     }
   }, [dispatch, isAuthenticated]);
 
+  useEffect(() => {
+  if ("Notification" in window && Notification.permission !== "granted") {
+    Notification.requestPermission();
+  }
+}, []);
+
+
   /* =========================
      BLOCK ROUTING WHILE AUTH CHECKS
   ========================= */
@@ -65,6 +73,7 @@ const App = () => {
 
   return (
     <BrowserRouter>
+    <NotificationsListener />
       <Routes>
         {/* PUBLIC */}
         <Route path="/login" element={<Login />} />

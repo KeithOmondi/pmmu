@@ -1,4 +1,3 @@
-// src/pages/Admin/AdminDashboard.tsx
 import React, { useEffect } from "react";
 import { useSelector, useDispatch } from "react-redux";
 import {
@@ -8,7 +7,9 @@ import {
   Gavel,
   Activity,
   ArrowUpRight,
-  BellRing,
+  Clock,
+  ExternalLink,
+  ChevronRight,
 } from "lucide-react";
 
 import {
@@ -26,13 +27,6 @@ const AdminDashboard = () => {
     (state) => state.indicators.allIndicators
   );
 
-  const BRAND = {
-    green: "#1a3a32",
-    gold: "#c2a336",
-    slate: "#8c94a4",
-    lightGold: "#f4f0e6",
-  };
-
   useEffect(() => {
     dispatch(fetchAllIndicatorsForAdmin());
     dispatch(fetchUsers());
@@ -48,160 +42,247 @@ const AdminDashboard = () => {
   const caseFiles = allIndicators.length;
 
   return (
-    <div className="min-h-screen bg-[#f8f9fa] p-4 sm:p-6 lg:p-10 space-y-6 md:space-y-8">
-      {/* Header */}
-      <header className="flex flex-col md:flex-row md:items-center justify-between gap-6 bg-white p-6 sm:p-8 rounded-2xl border border-gray-100 shadow-sm relative overflow-hidden">
-        <div className="absolute top-0 right-0 w-32 h-32 bg-[#c2a336]/5 -mr-10 -mt-10 rotate-45 hidden sm:block" />
-        <div className="absolute bottom-0 right-20 w-16 h-16 bg-[#1a3a32]/5 rotate-12 hidden sm:block" />
-
-        <div className="relative z-10 text-center md:text-left">
-          <div className="flex items-center justify-center md:justify-start gap-2 text-[#c2a336] font-bold text-[10px] sm:text-xs uppercase tracking-[0.2em] mb-2">
-            <ShieldCheck size={16} />
-            Secure Administrator Portal
-          </div>
-          <h1 className="text-2xl sm:text-3xl font-black text-[#1a3a32] tracking-tight leading-tight">
-            Welcome, Administrator
-          </h1>
-          <p className="text-[#8c94a4] mt-2 max-w-md font-medium leading-relaxed text-sm sm:text-base mx-auto md:mx-0">
-            Manage judicial indicators, oversee system users, and ensure
-            institutional integrity.
-          </p>
-        </div>
-
-        <div className="relative z-10 flex flex-row items-center justify-center md:justify-end gap-4 border-t md:border-t-0 pt-4 md:pt-0">
-          <button className="p-3 bg-gray-50 text-[#1a3a32] rounded-xl hover:bg-gray-100 transition-colors relative">
-            <BellRing size={20} />
-            <span className="absolute top-3 right-3 w-2 h-2 bg-rose-500 rounded-full border-2 border-white"></span>
-          </button>
-          <div className="h-10 w-[1px] bg-gray-200 hidden md:block" />
-          <div className="text-left md:text-right">
-            <p className="text-[9px] sm:text-[10px] font-bold text-[#8c94a4] uppercase tracking-widest">
-              Current Status
-            </p>
-            <p className="text-xs sm:text-sm font-bold text-[#1a3a32] flex items-center justify-start md:justify-end gap-1">
-              <span className="w-2 h-2 bg-emerald-500 rounded-full animate-pulse"></span>
-              System Active
+    <div className="space-y-10 animate-in fade-in slide-in-from-bottom-4 duration-700">
+      {/* 🏛 Top Hero Section */}
+      <section className="relative overflow-hidden rounded-[2.5rem] bg-[#1a3a32] p-8 md:p-12 text-white shadow-2xl">
+        <div className="absolute top-0 right-0 w-1/3 h-full bg-gradient-to-l from-[#c2a336]/10 to-transparent" />
+        <div className="relative z-10 flex flex-col md:flex-row justify-between items-end gap-6">
+          <div className="space-y-4">
+            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-[#c2a336]/20 border border-[#c2a336]/30 text-[#c2a336] text-[10px] font-black uppercase tracking-[0.2em]">
+              <ShieldCheck size={14} />
+              System Oversight Active
+            </div>
+            <h1 className="text-3xl md:text-5xl font-black tracking-tight">
+              Institutional <span className="text-[#c2a336]">Intelligence</span>
+            </h1>
+            <p className="text-slate-400 max-w-lg font-medium leading-relaxed">
+              Monitoring judicial indicators and registry integrity across all
+              departments in real-time.
             </p>
           </div>
+          <div className="flex gap-4">
+            <div className="bg-white/5 backdrop-blur-md border border-white/10 p-4 rounded-2xl min-w-[120px]">
+              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
+                Global Load
+              </p>
+              <p className="text-2xl font-black text-[#c2a336]">98.2%</p>
+            </div>
+            <div className="bg-white/5 backdrop-blur-md border border-white/10 p-4 rounded-2xl min-w-[120px]">
+              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
+                Uptime
+              </p>
+              <p className="text-2xl font-black text-emerald-400">Stable</p>
+            </div>
+          </div>
         </div>
-      </header>
+      </section>
 
-      {/* Metrics Grid */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 sm:gap-8">
-        <div className="lg:col-span-2 grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6">
-          <ActionCard
-            title="Registry Users"
-            count={registryUsers}
-            trend="+12%"
-            icon={<Users />}
-            color={BRAND.green}
-          />
-          <ActionCard
-            title="Pending Indicators"
-            count={pendingIndicators}
-            trend="Needs Review"
-            icon={<FileText />}
-            color={BRAND.gold}
-          />
-          <ActionCard
-            title="System Audits"
-            count={systemAudits}
-            trend="Last 24h"
-            icon={<Activity />}
-            color="#3b82f6"
-          />
-          <ActionCard
-            title="Case Files"
-            count={caseFiles}
-            trend="Stable"
-            icon={<Gavel />}
-            color={BRAND.slate}
-          />
+      {/* 📊 Metrics Grid */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+        <MetricCard
+          title="Registry Users"
+          count={registryUsers}
+          trend="+4 today"
+          icon={<Users size={22} />}
+          accent="emerald"
+        />
+        <MetricCard
+          title="Pending Review"
+          count={pendingIndicators}
+          trend="Action Required"
+          icon={<Clock size={22} />}
+          accent="amber"
+          isPriority
+        />
+        <MetricCard
+          title="System Audits"
+          count={systemAudits}
+          trend="Certified"
+          icon={<Activity size={22} />}
+          accent="blue"
+        />
+        <MetricCard
+          title="Case Files"
+          count={caseFiles}
+          trend="Total Volume"
+          icon={<Gavel size={22} />}
+          accent="slate"
+        />
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+        {/* 🛡 Recent Activity / Audit Log */}
+        <div className="lg:col-span-2 bg-white rounded-[2rem] border border-slate-200 shadow-sm overflow-hidden">
+          <div className="p-8 border-b border-slate-100 flex justify-between items-center">
+            <div>
+              <h3 className="text-lg font-black text-[#1a3a32] tracking-tight">
+                Live Audit Feed
+              </h3>
+              <p className="text-xs text-slate-400 font-medium">
+                Real-time system interaction logs
+              </p>
+            </div>
+            <button className="text-[10px] font-black uppercase tracking-widest text-[#c2a336] hover:underline flex items-center gap-2">
+              Full Archive <ExternalLink size={12} />
+            </button>
+          </div>
+          <div className="p-0">
+            {allIndicators.slice(0, 5).map((i, idx) => (
+              <ActivityRow key={i._id} item={i} isLast={idx === 4} />
+            ))}
+          </div>
         </div>
 
-        <aside className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5 sm:p-6 h-fit">
-          <h3 className="text-xs font-bold text-[#1a3a32] uppercase tracking-widest border-b border-gray-50 pb-4 mb-4">
-            Security Logs
-          </h3>
-          <div className="space-y-6">
-            {allIndicators.slice(0, 3).map((i) => {
-              const userName =
-                typeof i.createdBy === "string"
-                  ? i.createdBy
-                  : (i.createdBy as any)?.name || "System";
-              return (
-                <LogEntry
-                  key={i._id}
-                  time={i.updatedAt}
-                  action={i.indicatorTitle}
-                  user={userName}
-                />
-              );
-            })}
+        {/* 🛠 Quick Actions Panel */}
+        <aside className="space-y-6">
+          <div className="bg-[#1a3a32] rounded-[2rem] p-8 text-white shadow-xl relative group overflow-hidden">
+            <div className="absolute -right-4 -top-4 w-24 h-24 bg-[#c2a336]/20 rounded-full blur-3xl group-hover:scale-150 transition-transform duration-700" />
+            <h3 className="text-xs font-black uppercase tracking-[0.2em] text-[#c2a336] mb-6">
+              System Controls
+            </h3>
+            <div className="space-y-3">
+              <QuickActionButton
+                label="Generate Reports"
+                icon={<FileText size={16} />}
+              />
+              <QuickActionButton
+                label="User Management"
+                icon={<Users size={16} />}
+              />
+              <QuickActionButton
+                label="Global Settings"
+                icon={<Activity size={16} />}
+              />
+            </div>
           </div>
 
-          <button className="w-full mt-8 py-3 text-[10px] sm:text-xs font-bold text-[#c2a336] uppercase tracking-[0.2em] border border-[#c2a336]/20 rounded-xl hover:bg-[#f4f0e6] transition-colors">
-            View Full Audit Trail
-          </button>
+          <div className="bg-white rounded-[2rem] border border-slate-200 p-8 shadow-sm">
+            <h3 className="text-xs font-black uppercase tracking-[0.2em] text-slate-400 mb-6">
+              Institutional Motto
+            </h3>
+            <blockquote className="border-l-4 border-[#c2a336] pl-4">
+              <p className="text-lg font-bold text-[#1a3a32] italic leading-snug">
+                "Justice be our shield and defender."
+              </p>
+              <footer className="text-[10px] uppercase tracking-widest font-black text-slate-400 mt-2">
+                Judiciary System Registry
+              </footer>
+            </blockquote>
+          </div>
         </aside>
       </div>
     </div>
   );
 };
 
-/* --- Components --- */
-const ActionCard = ({ title, count, trend, icon, color }: any) => (
-  <div className="bg-white p-5 sm:p-6 rounded-2xl border border-gray-50 shadow-sm hover:shadow-md transition-shadow group cursor-pointer">
-    <div className="flex justify-between items-start mb-4">
-      <div
-        className="p-3 rounded-xl transition-colors"
-        style={{ backgroundColor: `${color}10`, color: color }}
-      >
-        {React.cloneElement(icon, { size: 24 })}
-      </div>
-      <ArrowUpRight
-        className="text-gray-300 group-hover:text-[#c2a336] transition-colors"
-        size={20}
-      />
-    </div>
-    <p className="text-[10px] sm:text-xs font-bold text-[#8c94a4] uppercase tracking-widest">
-      {title}
-    </p>
-    <div className="flex items-baseline flex-wrap gap-2 mt-1">
-      <span className="text-2xl sm:text-3xl font-black text-[#1a3a32]">
-        {count}
-      </span>
-      <span className="text-[9px] sm:text-[10px] font-bold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded uppercase">
-        {trend}
-      </span>
-    </div>
-  </div>
-);
+/* --- Sub-Components --- */
 
-const LogEntry = ({
-  time,
-  action,
-  user,
+const MetricCard = ({ title, count, trend, icon, accent, isPriority }: any) => {
+  const accents: any = {
+    emerald: "text-emerald-600 bg-emerald-50",
+    amber: "text-amber-600 bg-amber-50",
+    blue: "text-blue-600 bg-blue-50",
+    slate: "text-slate-600 bg-slate-50",
+  };
+
+  return (
+    <div
+      className={`group bg-white p-7 rounded-[2rem] border-2 transition-all duration-300 hover:shadow-xl ${
+        isPriority
+          ? "border-[#c2a336]/30 shadow-lg shadow-[#c2a336]/5"
+          : "border-slate-50 hover:border-[#c2a336]/20"
+      }`}
+    >
+      <div className="flex justify-between items-start mb-6">
+        <div
+          className={`p-4 rounded-2xl ${accents[accent]} group-hover:scale-110 transition-transform duration-300`}
+        >
+          {icon}
+        </div>
+        <ArrowUpRight
+          className="text-slate-200 group-hover:text-[#c2a336] transition-colors"
+          size={20}
+        />
+      </div>
+      <div>
+        <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.15em] mb-1">
+          {title}
+        </p>
+        <div className="flex items-baseline gap-3">
+          <h4 className="text-4xl font-black text-[#1a3a32]">{count}</h4>
+          <span
+            className={`text-[9px] font-black px-2 py-0.5 rounded-full uppercase tracking-tighter ${accents[accent]}`}
+          >
+            {trend}
+          </span>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+const ActivityRow = ({
+  item,
+  isLast,
 }: {
-  time: string;
-  action: string;
-  user: string;
+  item: IIndicator;
+  isLast: boolean;
+}) => {
+  const userName =
+    typeof item.createdBy === "string"
+      ? item.createdBy
+      : (item.createdBy as any)?.name || "System";
+
+  return (
+    <div
+      className={`flex items-center gap-4 p-6 hover:bg-slate-50 transition-colors ${
+        !isLast ? "border-b border-slate-50" : ""
+      }`}
+    >
+      <div className="w-12 h-12 rounded-xl bg-slate-100 flex items-center justify-center shrink-0">
+        <FileText size={20} className="text-slate-400" />
+      </div>
+      <div className="flex-1 min-w-0">
+        <p className="text-sm font-bold text-[#1a3a32] truncate uppercase tracking-tight">
+          {item.indicatorTitle}
+        </p>
+        <p className="text-xs text-slate-500 italic">Initiated by {userName}</p>
+      </div>
+      <div className="text-right shrink-0">
+        <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">
+          {new Date(item.updatedAt).toLocaleTimeString([], {
+            hour: "2-digit",
+            minute: "2-digit",
+          })}
+        </p>
+        <div className="inline-flex items-center gap-1.5 text-[9px] font-bold text-[#c2a336] bg-[#c2a336]/10 px-2 py-0.5 rounded-md uppercase tracking-tighter">
+          <div className="w-1 h-1 rounded-full bg-[#c2a336]" />
+          Registry Entry
+        </div>
+      </div>
+    </div>
+  );
+};
+
+const QuickActionButton = ({
+  label,
+  icon,
+}: {
+  label: string;
+  icon: React.ReactNode;
 }) => (
-  <div className="flex gap-4">
-    <div className="flex flex-col items-center">
-      <div className="w-2 h-2 rounded-full bg-[#c2a336] mb-1"></div>
-      <div className="w-[1px] flex-1 bg-gray-100"></div>
+  <button className="w-full flex items-center justify-between p-4 bg-white/5 hover:bg-white/10 border border-white/5 rounded-2xl transition-all group">
+    <div className="flex items-center gap-3">
+      <div className="text-[#c2a336]">{icon}</div>
+      <span className="text-xs font-bold uppercase tracking-widest">
+        {label}
+      </span>
     </div>
-    <div className="pb-2">
-      <p className="text-[9px] sm:text-[10px] font-bold text-[#8c94a4] uppercase tracking-widest">
-        {new Date(time).toLocaleString()}
-      </p>
-      <p className="text-sm font-bold text-[#1a3a32] leading-tight mb-1">
-        {action}
-      </p>
-      <p className="text-xs text-gray-500 italic">By {user}</p>
-    </div>
-  </div>
+    <ChevronRight
+      size={14}
+      className="text-white/20 group-hover:text-[#c2a336] group-hover:translate-x-1 transition-all"
+    />
+  </button>
 );
 
 export default AdminDashboard;

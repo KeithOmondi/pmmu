@@ -3,7 +3,8 @@ import authReducer from "./slices/authSlice";
 import categoryReducer from "./slices/categoriesSlice";
 import indicatorsReducer from "./slices/indicatorsSlice";
 import usersReducer from "./slices/userSlice";
-import notificationsindicatorsReducer from "./slices/notificationsSlice"
+import notificationsindicatorsReducer from "./slices/notificationsSlice";
+import reportsReducer from "./slices/reportsSlice"
 
 export const store = configureStore({
   reducer: {
@@ -12,6 +13,7 @@ export const store = configureStore({
     indicators: indicatorsReducer,
     notifications: notificationsindicatorsReducer,
     users: usersReducer,
+    reports: reportsReducer
   },
   middleware: (getDefaultMiddleware) =>
     getDefaultMiddleware({ serializableCheck: false }),

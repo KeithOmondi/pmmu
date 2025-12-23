@@ -1,15 +1,13 @@
+// src/components/Admin/AdminHeader.tsx
 import { useEffect, useRef, useState } from "react";
 import { Bell, Search, User, ChevronDown } from "lucide-react";
 import { useAppDispatch, useAppSelector } from "../../store/hooks";
 import {
-  fetchAllNotifications,
   markNotificationAsRead,
-  addNotification,
   selectNotifications,
   selectUnreadCount,
 } from "../../store/slices/notificationsSlice";
 import type { Notification } from "../../store/slices/notificationsSlice";
-import { getSocket } from "../../utils/socket";
 
 const AdminHeader: React.FC = () => {
   const dispatch = useAppDispatch();
@@ -22,32 +20,6 @@ const AdminHeader: React.FC = () => {
   ========================================================= */
   const notifications = useAppSelector(selectNotifications);
   const unreadCount = useAppSelector(selectUnreadCount);
-
-  /* =========================================================
-     INITIAL FETCH (Admin / SuperAdmin)
-  ========================================================= */
-  useEffect(() => {
-    dispatch(fetchAllNotifications());
-  }, [dispatch]);
-
-  /* =========================================================
-     SOCKET.IO – REALTIME UPDATES
-  ========================================================= */
-  useEffect(() => {
-    const socket = getSocket();
-
-    socket.on("connect", () => {
-      console.log("🔔 Notifications socket connected:", socket.id);
-    });
-
-    socket.on("newNotification", (notification: Notification) => {
-      dispatch(addNotification(notification));
-    });
-
-    return () => {
-      socket.off("newNotification");
-    };
-  }, [dispatch]);
 
   /* =========================================================
      CLICK OUTSIDE DROPDOWN
@@ -118,7 +90,7 @@ const AdminHeader: React.FC = () => {
                     <p className="text-sm font-semibold text-slate-800">{n.title}</p>
                     <p className="text-xs text-slate-600 mt-0.5">{n.message}</p>
 
-                    {/* ✅ Show submitter name instead of ID */}
+                    {/* Show submitter name if available */}
                     {n.submittedBy && (
                       <p className="text-[10px] text-slate-400 mt-1">
                         Submitted by: {n.submittedBy.name}
