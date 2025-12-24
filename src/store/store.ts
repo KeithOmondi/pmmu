@@ -4,7 +4,8 @@ import categoryReducer from "./slices/categoriesSlice";
 import indicatorsReducer from "./slices/indicatorsSlice";
 import usersReducer from "./slices/userSlice";
 import notificationsindicatorsReducer from "./slices/notificationsSlice";
-import reportsReducer from "./slices/reportsSlice"
+import reportsReducer from "./slices/reportsSlice";
+import adminReducer from "./slices/adminSlice"
 
 export const store = configureStore({
   reducer: {
@@ -13,7 +14,8 @@ export const store = configureStore({
     indicators: indicatorsReducer,
     notifications: notificationsindicatorsReducer,
     users: usersReducer,
-    reports: reportsReducer
+    reports: reportsReducer,
+    admin: adminReducer
   },
   middleware: (getDefaultMiddleware) =>
     getDefaultMiddleware({ serializableCheck: false }),

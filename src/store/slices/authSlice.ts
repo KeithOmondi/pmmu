@@ -6,6 +6,7 @@ import { fetchMyNotifications } from "./notificationsSlice";
 /* =========================
    TYPES
 ========================= */
+
 export type Role = "SuperAdmin" | "Admin" | "User";
 
 export interface User {
@@ -15,7 +16,7 @@ export interface User {
   pjNumber?: string;
   role: Role;
   accountVerified?: boolean;
-  avatar?: any;
+  avatar?: string; // Stores the secure_url string from Cloudinary
 }
 
 interface AuthResponse {
@@ -32,9 +33,6 @@ interface AuthState {
   isAuthenticated: boolean;
 }
 
-/* =========================
-   INITIAL STATE
-========================= */
 const initialState: AuthState = {
   user: null,
   loading: false,
@@ -42,11 +40,11 @@ const initialState: AuthState = {
   isAuthenticated: false,
 };
 
-/* =========================
-   UTILITIES
-========================= */
+/**
+ * Ensures roles are always stored in the correct casing in Redux
+ */
 const normalizeRole = (role: string): Role => {
-  const r = role.toLowerCase();
+  const r = role?.toLowerCase();
   if (r === "superadmin") return "SuperAdmin";
   if (r === "admin") return "Admin";
   return "User";
@@ -56,11 +54,7 @@ const normalizeRole = (role: string): Role => {
    THUNKS
 ========================= */
 
-/**
- * LOGIN
- * - stores accessToken in localStorage
- * - sets user in redux
- */
+// 1. LOGIN
 export const login = createAsyncThunk<
   AuthResponse,
   { email: string; password: string },
@@ -68,20 +62,14 @@ export const login = createAsyncThunk<
 >("auth/login", async (payload, { rejectWithValue }) => {
   try {
     const { data } = await api.post<AuthResponse>("/auth/login", payload);
-
-    // ✅ STORE ACCESS TOKEN
     localStorage.setItem("accessToken", data.accessToken);
-
     return data;
   } catch (err: any) {
     return rejectWithValue(err.response?.data?.message || "Login failed");
   }
 });
 
-/**
- * REFRESH USER (optional manual refresh)
- * Axios interceptor already handles refresh automatically
- */
+// 2. REFRESH SESSION
 export const refreshUser = createAsyncThunk<
   AuthResponse,
   void,
@@ -89,104 +77,115 @@ export const refreshUser = createAsyncThunk<
 >("auth/refreshUser", async (_, { rejectWithValue }) => {
   try {
     const { data } = await api.post<AuthResponse>("/auth/refresh");
-
-    // ✅ UPDATE ACCESS TOKEN
     localStorage.setItem("accessToken", data.accessToken);
-
     return data;
   } catch (err: any) {
     return rejectWithValue(err.response?.data?.message || "Session expired");
   }
 });
 
-/**
- * LOGOUT
- * - clears cookies (backend)
- * - clears accessToken (frontend)
- */
+// 3. UPDATE PROFILE
+export const updateProfile = createAsyncThunk<
+  AuthResponse,
+  FormData,
+  { rejectValue: string }
+>("auth/updateProfile", async (formData, { rejectWithValue }) => {
+  try {
+    const { data } = await api.put<AuthResponse>("/users/profile", formData);
+    return data;
+  } catch (err: any) {
+    return rejectWithValue(
+      err.response?.data?.message || "Registry synchronization failed"
+    );
+  }
+});
+
+// 4. LOGOUT
 export const logout = createAsyncThunk<void, void, { dispatch: AppDispatch }>(
   "auth/logout",
   async (_, { dispatch }) => {
-    await api.post("/auth/logout");
-
-    // ✅ REMOVE TOKEN
-    localStorage.removeItem("accessToken");
-
-    dispatch(fetchMyNotifications());
+    try {
+      await api.post("/auth/logout");
+    } finally {
+      localStorage.removeItem("accessToken");
+      dispatch(fetchMyNotifications());
+    }
   }
 );
 
 /* =========================
    SLICE
 ========================= */
+
 const authSlice = createSlice({
   name: "auth",
   initialState,
   reducers: {
-    /**
-     * Used on app init to restore auth state
-     * if accessToken exists
-     */
     setAuthenticated(state) {
       state.isAuthenticated = true;
+    },
+    clearAuthError(state) {
+      state.error = null;
     },
   },
   extraReducers: (builder) => {
     builder
-      // -----------------
-      // LOGIN
-      // -----------------
+      /* --- LOGIN --- */
       .addCase(login.pending, (state) => {
         state.loading = true;
         state.error = null;
       })
       .addCase(login.fulfilled, (state, action) => {
+        state.loading = false;
         state.user = {
           ...action.payload.user,
           role: normalizeRole(action.payload.user.role),
         };
         state.isAuthenticated = true;
-        state.loading = false;
       })
       .addCase(login.rejected, (state, action) => {
-        state.user = null;
-        state.isAuthenticated = false;
         state.loading = false;
-        state.error = action.payload || "Login failed";
+        state.error = action.payload as string;
       })
 
-      // -----------------
-      // REFRESH USER
-      // -----------------
-      .addCase(refreshUser.pending, (state) => {
-        state.loading = true;
-      })
+      /* --- REFRESH --- */
       .addCase(refreshUser.fulfilled, (state, action) => {
+        state.loading = false;
         state.user = {
           ...action.payload.user,
           role: normalizeRole(action.payload.user.role),
         };
         state.isAuthenticated = true;
-        state.loading = false;
-      })
-      .addCase(refreshUser.rejected, (state) => {
-        state.user = null;
-        state.isAuthenticated = false;
-        state.loading = false;
-        localStorage.removeItem("accessToken");
       })
 
-      // -----------------
-      // LOGOUT
-      // -----------------
+      /* --- UPDATE PROFILE --- */
+      .addCase(updateProfile.pending, (state) => {
+        state.loading = true;
+        state.error = null;
+      })
+      .addCase(updateProfile.fulfilled, (state, action) => {
+        state.loading = false;
+        // Logic: Merge the returned user data into the existing state
+        if (action.payload.success && action.payload.user) {
+          state.user = {
+            ...action.payload.user,
+            role: normalizeRole(action.payload.user.role),
+          };
+        }
+      })
+      .addCase(updateProfile.rejected, (state, action) => {
+        state.loading = false;
+        state.error = action.payload as string;
+      })
+
+      /* --- LOGOUT --- */
       .addCase(logout.fulfilled, (state) => {
         state.user = null;
         state.isAuthenticated = false;
         state.loading = false;
-        state.error = null;
       });
   },
 });
 
-export const { setAuthenticated } = authSlice.actions;
+export const { setAuthenticated, clearAuthError } = authSlice.actions;
 export default authSlice.reducer;

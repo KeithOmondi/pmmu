@@ -11,6 +11,7 @@ import {
   Menu,
   Book,
   Bell,
+  Logs,
 } from "lucide-react";
 import { useAppDispatch } from "../../store/hooks"; // adjust path
 import { logout } from "../../store/slices/authSlice";
@@ -156,6 +157,16 @@ const SuperAdminSidebar = () => {
           to="/superadmin/reports"
           icon={<Book size={18} />}
           label="Reports"
+          isCollapsed={isCollapsed}
+          activeClass={activeClass}
+          inactiveClass={inactiveClass}
+          linkClass={linkClass}
+        />
+
+        <NavItem
+          to="/superadmin/logs"
+          icon={<Logs size={18} />}
+          label="Logs"
           isCollapsed={isCollapsed}
           activeClass={activeClass}
           inactiveClass={inactiveClass}

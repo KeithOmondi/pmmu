@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { Bell, UserCircle, Inbox, Clock, CheckCheck } from "lucide-react";
+import { Bell, UserCircle, Inbox, Clock } from "lucide-react";
 import { useAppDispatch, useAppSelector } from "../../store/hooks";
 import type { RootState } from "../../store/store";
 import {
@@ -10,15 +10,11 @@ import {
   addNotification,
 } from "../../store/slices/notificationsSlice";
 import type { Notification } from "../../store/slices/notificationsSlice";
-import { getSocket } from "../../utils/socket";
+import { getSocket } from "../../utils/socket"; // Ensure this is the updated singleton
 import { formatDistanceToNow } from "date-fns";
 
 const UserHeader: React.FC = () => {
   const dispatch = useAppDispatch();
-
-  /* =========================================================
-      REDUX STATE
-  ========================================================= */
   const user = useAppSelector((state: RootState) => state.auth.user);
   const notifications = useAppSelector(selectNotifications);
   const unreadCount = useAppSelector(selectUnreadCount);
@@ -26,25 +22,18 @@ const UserHeader: React.FC = () => {
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
-  /* =========================================================
-      INITIAL FETCH (USER INBOX)
-  ========================================================= */
   useEffect(() => {
     dispatch(fetchMyNotifications());
   }, [dispatch]);
 
-  /* =========================================================
-      SOCKET.IO – USER ROOM
-  ========================================================= */
   useEffect(() => {
     if (!user?._id) return;
 
     const socket = getSocket();
 
-    // Join personal room to receive targeted alerts
+    // Use built-in room logic if your backend supports it, or manual join
     socket.emit("join", user._id);
 
-    // Listen for incoming notifications from the server
     socket.on("newNotification", (notification: Notification) => {
       dispatch(addNotification(notification));
     });
@@ -52,49 +41,41 @@ const UserHeader: React.FC = () => {
     return () => {
       socket.off("newNotification");
     };
-  }, [dispatch, user?._id]);
+  }, [user?._id, dispatch]);
 
-  /* =========================================================
-      CLICK OUTSIDE DROPDOWN
-  ========================================================= */
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
-      if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) {
+      if (
+        dropdownRef.current &&
+        !dropdownRef.current.contains(e.target as Node)
+      ) {
         setDropdownOpen(false);
       }
     };
-
     document.addEventListener("mousedown", handleClickOutside);
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
-  const handleNotificationClick = (notification: Notification) => {
-    if (!notification.read) {
-      dispatch(markNotificationAsRead(notification._id));
-    }
-  };
-
   return (
     <header className="sticky top-0 z-40 flex items-center justify-between w-full bg-white px-6 py-4 shadow-sm border-b border-slate-100 mb-6">
-      {/* 👋 Personalized Greeting */}
       <div>
-        <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-0.5">
-          General Registry
-        </p>
         <h1 className="text-lg font-black text-[#1a3a32] uppercase tracking-tight">
-          Welcome back, <span className="text-[#c2a336]">{user?.name?.split(" ")[0] || "Officer"}</span>
+          Welcome back,{" "}
+          <span className="text-[#c2a336]">
+            {user?.name?.split(" ")[0] || "Officer"}
+          </span>
         </h1>
       </div>
 
-      {/* Right Section */}
       <div className="flex items-center gap-4 relative" ref={dropdownRef}>
-        
-        {/* 🔔 Notifications Engine */}
+        {/* Notifications */}
         <div className="relative">
           <button
             onClick={() => setDropdownOpen((o) => !o)}
             className={`relative p-2.5 rounded-xl transition-all duration-300 ${
-              dropdownOpen ? "bg-[#f4f0e6] text-[#c2a336]" : "text-slate-500 hover:bg-slate-50"
+              dropdownOpen
+                ? "bg-[#f4f0e6] text-[#c2a336]"
+                : "text-slate-500 hover:bg-slate-50"
             }`}
           >
             <Bell size={22} />
@@ -107,37 +88,32 @@ const UserHeader: React.FC = () => {
           </button>
 
           {dropdownOpen && (
-            <div className="absolute right-0 mt-4 w-[350px] flex flex-col bg-white border border-slate-200 rounded-2xl shadow-2xl z-50 overflow-hidden animate-in fade-in slide-in-from-top-2 duration-200">
-              {/* Dropdown Header */}
+            <div className="absolute right-0 mt-4 w-[350px] bg-white border border-slate-200 rounded-2xl shadow-2xl z-50 overflow-hidden animate-in fade-in slide-in-from-top-2">
               <div className="p-4 border-b border-slate-100 flex justify-between items-center bg-slate-50/50">
-                <div>
-                  <h3 className="font-black text-[#1a3a32] text-[10px] uppercase tracking-widest">
-                    Your Inbox
-                  </h3>
-                  <p className="text-[9px] text-slate-500 font-bold mt-0.5">
-                    {unreadCount} UNREAD NOTIFICATIONS
-                  </p>
-                </div>
-                {unreadCount > 0 && (
-                   <button className="text-[9px] font-black text-[#c2a336] uppercase hover:underline flex items-center gap-1">
-                    <CheckCheck size={12} /> Mark all
-                   </button>
-                )}
+                <h3 className="font-black text-[#1a3a32] text-[10px] uppercase tracking-widest">
+                  Your Inbox
+                </h3>
+                <span className="text-[9px] text-[#c2a336] font-bold uppercase">
+                  {unreadCount} Unread
+                </span>
               </div>
-
-              {/* Notifications List */}
               <div className="max-h-[380px] overflow-y-auto custom-scrollbar">
                 {notifications.length === 0 ? (
-                  <div className="py-12 flex flex-col items-center justify-center text-slate-400">
+                  <div className="py-12 flex flex-col items-center text-slate-400">
                     <Inbox size={32} className="mb-2 opacity-20" />
-                    <p className="text-[10px] font-bold uppercase tracking-widest">Clear Skies</p>
+                    <p className="text-[10px] font-bold uppercase">
+                      Clear Skies
+                    </p>
                   </div>
                 ) : (
                   notifications.map((notif) => (
                     <div
                       key={notif._id}
-                      onClick={() => handleNotificationClick(notif)}
-                      className={`w-full text-left p-4 border-b border-slate-50 last:border-b-0 transition flex gap-3 cursor-pointer ${
+                      onClick={() =>
+                        !notif.read &&
+                        dispatch(markNotificationAsRead(notif._id))
+                      }
+                      className={`p-4 border-b border-slate-50 transition cursor-pointer flex gap-3 ${
                         notif.read
                           ? "bg-white opacity-60"
                           : "bg-[#f4f7f6] border-l-4 border-l-[#c2a336]"
@@ -145,41 +121,40 @@ const UserHeader: React.FC = () => {
                     >
                       <div className="flex-1">
                         <div className="flex justify-between items-start mb-1">
-                          <p className={`text-xs ${notif.read ? "font-semibold" : "font-black"} text-[#1a3a32] uppercase`}>
+                          <p
+                            className={`text-xs ${
+                              notif.read ? "font-semibold" : "font-black"
+                            } text-[#1a3a32] uppercase`}
+                          >
                             {notif.title}
                           </p>
-                          <Clock size={10} className="text-slate-300 mt-0.5" />
+                          <Clock size={10} className="text-slate-300" />
                         </div>
-
-                        <p className="text-[11px] text-slate-600 leading-relaxed mb-2">
+                        <p className="text-[11px] text-slate-600 mb-2">
                           {notif.message}
                         </p>
-
-                        <p className="text-[9px] text-slate-400 font-bold uppercase tracking-tighter">
-                          {formatDistanceToNow(new Date(notif.createdAt), { addSuffix: true })}
+                        <p className="text-[9px] text-slate-400 font-bold uppercase">
+                          {formatDistanceToNow(new Date(notif.createdAt), {
+                            addSuffix: true,
+                          })}
                         </p>
                       </div>
                     </div>
                   ))
                 )}
               </div>
-
-              {/* Dropdown Footer */}
-              <button className="p-3 text-center text-[9px] font-black uppercase tracking-[0.2em] text-slate-400 bg-slate-50 hover:bg-slate-100 transition-colors border-t border-slate-200">
-                View Past Archive
-              </button>
             </div>
           )}
         </div>
 
-        {/* 👤 Professional Profile Card */}
-        <div className="flex items-center gap-3 pl-4 border-l border-slate-100 cursor-pointer group">
+        {/* Profile Section */}
+        <div className="flex items-center gap-3 pl-4 border-l border-slate-100 group cursor-pointer">
           <div className="text-right hidden sm:block">
             <p className="text-[10px] font-black text-[#1a3a32] uppercase tracking-wider group-hover:text-[#c2a336] transition-colors">
               {user?.name || "Guest"}
             </p>
-            <p className="text-[9px] text-slate-400 font-bold uppercase tracking-widest">
-              User Account
+            <p className="text-[9px] text-[#c2a336] font-bold uppercase tracking-widest">
+              {user?.role || "User Account"}
             </p>
           </div>
 
@@ -188,7 +163,10 @@ const UserHeader: React.FC = () => {
               <img
                 src={user.avatar}
                 alt={user.name}
-                className="w-10 h-10 rounded-xl object-cover shadow-md group-hover:scale-105 transition-transform"
+                className="w-10 h-10 rounded-xl object-cover shadow-md border-2 border-slate-50 group-hover:scale-105 transition-all"
+                onError={(e) => {
+                  e.currentTarget.src = `https://ui-avatars.com/api/?name=${user.name}&background=1a3a32&color=c2a336`;
+                }}
               />
             ) : (
               <div className="w-10 h-10 bg-[#1a3a32] rounded-xl flex items-center justify-center text-[#c2a336] shadow-lg group-hover:scale-105 transition-transform">

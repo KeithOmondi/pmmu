@@ -2,11 +2,18 @@ import { createSlice, createAsyncThunk, type PayloadAction } from "@reduxjs/tool
 import api from "../../api/axios";
 import type { RootState } from "../store";
 
+/* =========================
+   TYPES
+========================= */
+
 export interface IUser {
   _id: string;
   name: string;
   email: string;
-  role?: string;
+  pjNumber: string; // Matches your Backend Model
+  role: "SuperAdmin" | "Admin" | "User";
+  accountVerified?: boolean;
+  avatar?: string; // We'll store the URL string returned by the backend
   department?: string;
 }
 
@@ -26,7 +33,8 @@ const initialState: UserState = {
    THUNKS
 ========================= */
 
-export const fetchUsers = createAsyncThunk<IUser[]>(
+// GET ALL USERS
+export const fetchUsers = createAsyncThunk<IUser[], void, { rejectValue: string }>(
   "users/fetchUsers",
   async (_, { rejectWithValue }) => {
     try {
@@ -38,11 +46,13 @@ export const fetchUsers = createAsyncThunk<IUser[]>(
   }
 );
 
-export const createUser = createAsyncThunk<IUser, Partial<IUser> & { password: string }>(
+// CREATE USER (Supports Avatar Upload)
+export const createUser = createAsyncThunk<IUser, FormData, { rejectValue: string }>(
   "users/createUser",
-  async (userData, { rejectWithValue }) => {
+  async (formData, { rejectWithValue }) => {
     try {
-      const res = await api.post("/users/create", userData);
+      // Note: No "Content-Type" header needed; Axios sets it automatically for FormData
+      const res = await api.post("/users/create", formData);
       return res.data;
     } catch (err: any) {
       return rejectWithValue(err.response?.data?.message || "Failed to create user");
@@ -50,11 +60,12 @@ export const createUser = createAsyncThunk<IUser, Partial<IUser> & { password: s
   }
 );
 
-export const updateUser = createAsyncThunk<IUser, { id: string; updates: Partial<IUser> }>(
+// UPDATE USER (Supports Avatar Upload)
+export const updateUser = createAsyncThunk<IUser, { id: string; formData: FormData }, { rejectValue: string }>(
   "users/updateUser",
-  async ({ id, updates }, { rejectWithValue }) => {
+  async ({ id, formData }, { rejectWithValue }) => {
     try {
-      const res = await api.put(`/users/update/${id}`, updates);
+      const res = await api.put(`/users/update/${id}`, formData);
       return res.data;
     } catch (err: any) {
       return rejectWithValue(err.response?.data?.message || "Failed to update user");
@@ -62,7 +73,8 @@ export const updateUser = createAsyncThunk<IUser, { id: string; updates: Partial
   }
 );
 
-export const deleteUser = createAsyncThunk<string, string>(
+// DELETE USER
+export const deleteUser = createAsyncThunk<string, string, { rejectValue: string }>(
   "users/deleteUser",
   async (id, { rejectWithValue }) => {
     try {
@@ -87,27 +99,34 @@ const userSlice = createSlice({
   },
   extraReducers: (builder) => {
     builder
+      /* FETCH USERS */
       .addCase(fetchUsers.pending, (state) => {
         state.loading = true;
+        state.error = null;
       })
       .addCase(fetchUsers.fulfilled, (state, action: PayloadAction<IUser[]>) => {
         state.loading = false;
         state.users = action.payload;
       })
-      .addCase(fetchUsers.rejected, (state, action: PayloadAction<any>) => {
+      .addCase(fetchUsers.rejected, (state, action) => {
         state.loading = false;
-        state.error = action.payload;
+        state.error = action.payload as string;
       })
 
+      /* CREATE USER */
       .addCase(createUser.fulfilled, (state, action) => {
-        state.users.push(action.payload);
+        state.users.unshift(action.payload); // Add to top of list
       })
 
+      /* UPDATE USER */
       .addCase(updateUser.fulfilled, (state, action) => {
         const index = state.users.findIndex(u => u._id === action.payload._id);
-        if (index !== -1) state.users[index] = action.payload;
+        if (index !== -1) {
+          state.users[index] = action.payload;
+        }
       })
 
+      /* DELETE USER */
       .addCase(deleteUser.fulfilled, (state, action) => {
         state.users = state.users.filter(u => u._id !== action.payload);
       });

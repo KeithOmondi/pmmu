@@ -52,7 +52,7 @@ const AdminDashboard = () => {
               <ShieldCheck size={14} />
               System Oversight Active
             </div>
-            <h1 className="text-3xl md:text-5xl font-black tracking-tight">
+            <h1 className="text-3xl md:text-3xl font-black tracking-tight">
               Institutional <span className="text-[#c2a336]">Intelligence</span>
             </h1>
             <p className="text-slate-400 max-w-lg font-medium leading-relaxed">
@@ -80,7 +80,7 @@ const AdminDashboard = () => {
       {/* 📊 Metrics Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
         <MetricCard
-          title="Registry Users"
+          title="Users"
           count={registryUsers}
           trend="+4 today"
           icon={<Users size={22} />}
