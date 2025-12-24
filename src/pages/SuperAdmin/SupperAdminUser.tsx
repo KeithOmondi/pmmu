@@ -22,6 +22,9 @@ import {
 } from "lucide-react";
 import toast from "react-hot-toast";
 
+// Matches the exact string literals in your Slice/Backend
+type RoleType = "SuperAdmin" | "Admin" | "User";
+
 const SuperAdminUser: React.FC = () => {
   const dispatch = useAppDispatch();
   const users = useAppSelector(selectAllUsers);
@@ -34,7 +37,7 @@ const SuperAdminUser: React.FC = () => {
   // Form state
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
-  const [role, setRole] = useState<"user" | "admin" | "superadmin">("user");
+  const [role, setRole] = useState<RoleType>("User");
 
   useEffect(() => {
     dispatch(fetchUsers());
@@ -48,11 +51,11 @@ const SuperAdminUser: React.FC = () => {
     if (editUser) {
       setName(editUser.name);
       setEmail(editUser.email);
-      setRole((editUser.role?.toLowerCase() as any) ?? "user");
+      setRole(editUser.role);
     } else {
       setName("");
       setEmail("");
-      setRole("user");
+      setRole("User");
     }
   }, [editUser]);
 
@@ -67,11 +70,17 @@ const SuperAdminUser: React.FC = () => {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+
+    // MUST use FormData to match your Slice Thunk requirements
+    const formData = new FormData();
+    formData.append("name", name);
+    formData.append("email", email);
+    formData.append("role", role);
+
+    // Logic for Create vs Update
     const action = editUser
-      ? dispatch(
-          updateUser({ id: editUser._id, updates: { name, email, role } })
-        )
-      : dispatch(createUser({ name, email, role, password: "default123" }));
+      ? dispatch(updateUser({ id: editUser._id, formData })) // key must be 'formData'
+      : dispatch(createUser(formData));
 
     action
       .unwrap()
@@ -159,9 +168,9 @@ const SuperAdminUser: React.FC = () => {
                     <span
                       className={`px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-tighter border
                       ${
-                        user.role === "superadmin"
+                        user.role === "SuperAdmin"
                           ? "bg-[#1a3a32] text-white"
-                          : user.role === "admin"
+                          : user.role === "Admin"
                           ? "bg-amber-50 border-amber-200 text-amber-700"
                           : "bg-slate-50 border-slate-200 text-slate-700"
                       }`}
@@ -177,14 +186,12 @@ const SuperAdminUser: React.FC = () => {
                           setShowForm(true);
                         }}
                         className="p-2 text-[#c2a336] hover:bg-[#f4f0e6] rounded-lg transition-colors"
-                        title="Edit Official"
                       >
                         <Edit3 size={16} />
                       </button>
                       <button
                         onClick={() => handleDelete(user._id)}
                         className="p-2 text-rose-600 hover:bg-rose-50 rounded-lg transition-colors"
-                        title="Revoke Access"
                       >
                         <Trash2 size={16} />
                       </button>
@@ -204,18 +211,13 @@ const SuperAdminUser: React.FC = () => {
           onClick={() => setShowForm(false)}
         >
           <div
-            className="bg-white w-full max-w-md rounded-2xl shadow-2xl overflow-hidden animate-in zoom-in duration-200"
+            className="bg-white w-full max-w-md rounded-2xl shadow-2xl overflow-hidden"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="bg-[#1a3a32] p-6 text-white flex justify-between items-center">
-              <div>
-                <h2 className="text-xl font-bold">
-                  {editUser ? "Edit Profile" : "New Registration"}
-                </h2>
-                <p className="text-xs text-white/60 uppercase tracking-widest mt-1">
-                  Judicial Access Protocol
-                </p>
-              </div>
+              <h2 className="text-xl font-bold">
+                {editUser ? "Edit Profile" : "New Registration"}
+              </h2>
               <button
                 onClick={() => setShowForm(false)}
                 className="hover:rotate-90 transition-transform"
@@ -226,7 +228,7 @@ const SuperAdminUser: React.FC = () => {
 
             <form onSubmit={handleSubmit} className="p-8 space-y-5">
               <div className="space-y-1">
-                <label className="text-[10px] font-bold text-[#8c94a4] uppercase tracking-widest ml-1">
+                <label className="text-[10px] font-bold text-[#8c94a4] uppercase tracking-widest">
                   Full Legal Name
                 </label>
                 <div className="relative">
@@ -239,14 +241,14 @@ const SuperAdminUser: React.FC = () => {
                     required
                     value={name}
                     onChange={(e) => setName(e.target.value)}
-                    className="w-full pl-10 pr-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-[#c2a336] focus:border-transparent outline-none transition-all"
+                    className="w-full pl-10 pr-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl outline-none"
                     placeholder="Hon. John Doe"
                   />
                 </div>
               </div>
 
               <div className="space-y-1">
-                <label className="text-[10px] font-bold text-[#8c94a4] uppercase tracking-widest ml-1">
+                <label className="text-[10px] font-bold text-[#8c94a4] uppercase tracking-widest">
                   Judiciary Email
                 </label>
                 <div className="relative">
@@ -259,24 +261,24 @@ const SuperAdminUser: React.FC = () => {
                     required
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
-                    className="w-full pl-10 pr-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-[#c2a336] focus:border-transparent outline-none transition-all"
+                    className="w-full pl-10 pr-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl outline-none"
                     placeholder="official@judiciary.go.ke"
                   />
                 </div>
               </div>
 
               <div className="space-y-1">
-                <label className="text-[10px] font-bold text-[#8c94a4] uppercase tracking-widest ml-1">
+                <label className="text-[10px] font-bold text-[#8c94a4] uppercase tracking-widest">
                   Administrative Role
                 </label>
                 <select
                   value={role}
-                  onChange={(e) => setRole(e.target.value as any)}
-                  className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-[#c2a336] outline-none transition-all appearance-none"
+                  onChange={(e) => setRole(e.target.value as RoleType)}
+                  className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl outline-none"
                 >
-                  <option value="user">Registry User</option>
-                  <option value="admin">System Admin</option>
-                  <option value="superadmin">Super Administrator</option>
+                  <option value="User">Registry User</option>
+                  <option value="Admin">System Admin</option>
+                  <option value="SuperAdmin">Super Administrator</option>
                 </select>
               </div>
 
@@ -284,13 +286,13 @@ const SuperAdminUser: React.FC = () => {
                 <button
                   type="button"
                   onClick={() => setShowForm(false)}
-                  className="flex-1 py-3 text-sm font-bold text-gray-500 hover:bg-gray-100 rounded-xl transition-colors"
+                  className="flex-1 py-3 text-sm font-bold text-gray-500 hover:bg-gray-100 rounded-xl"
                 >
                   Discard
                 </button>
                 <button
                   type="submit"
-                  className="flex-1 py-3 bg-[#c2a336] hover:bg-[#b0922f] text-[#1a3a32] font-bold rounded-xl shadow-lg shadow-[#c2a336]/20 transition-all active:scale-95"
+                  className="flex-1 py-3 bg-[#c2a336] text-[#1a3a32] font-bold rounded-xl shadow-lg"
                 >
                   {editUser ? "Save Changes" : "Confirm Entry"}
                 </button>
