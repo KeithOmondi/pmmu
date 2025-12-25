@@ -6,6 +6,7 @@ import {
   ChevronDown,
   Inbox,
   CheckCheck,
+  Calendar,
 } from "lucide-react";
 import { useAppDispatch, useAppSelector } from "../../store/hooks";
 import {
@@ -16,47 +17,36 @@ import {
   selectUnreadCount,
   type Notification,
 } from "../../store/slices/notificationsSlice";
-import { formatDistanceToNow } from "date-fns";
+import { format, formatDistanceToNow } from "date-fns";
 import { getSocket } from "../../utils/socket";
+
+// Import the new Modal
+import AdminCalendarModal from "./AdminCalendarModal";
 
 const AdminHeader: React.FC = () => {
   const dispatch = useAppDispatch();
   const [notifOpen, setNotifOpen] = useState(false);
+  const [calendarOpen, setCalendarOpen] = useState(false); // Modal State
   const dropdownRef = useRef<HTMLDivElement>(null);
 
   // Redux State
   const notifications = useAppSelector(selectNotifications);
   const unreadCount = useAppSelector(selectUnreadCount);
 
-  /* =========================================================
-      INITIAL FETCH & REAL-TIME SOCKET LISTENER
-  ========================================================= */
   useEffect(() => {
-    // 1. Fetch existing notifications from DB on mount
     dispatch(fetchMyNotifications());
-
-    // 2. Setup Socket listener for incoming alerts (Evidence submissions, etc.)
     const socket = getSocket();
-
-    // The backend should emit "notification" whenever an indicator is submitted
     socket.on("notification", (newNotif: Notification) => {
       dispatch(addNotification(newNotif));
     });
-
     return () => {
       socket.off("notification");
     };
   }, [dispatch]);
 
-  /* =========================================================
-      CLICK OUTSIDE LOGIC
-  ========================================================= */
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
-      if (
-        dropdownRef.current &&
-        !dropdownRef.current.contains(e.target as Node)
-      ) {
+      if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) {
         setNotifOpen(false);
       }
     };
@@ -68,7 +58,6 @@ const AdminHeader: React.FC = () => {
     if (!notification.read) {
       dispatch(markNotificationAsRead(notification._id));
     }
-    // Logic to navigate to the specific indicator could be added here
   };
 
   return (
@@ -84,7 +73,26 @@ const AdminHeader: React.FC = () => {
       </div>
 
       {/* Right Actions */}
-      <div className="flex items-center gap-6 ml-auto relative">
+      <div className="flex items-center gap-4 ml-auto relative">
+        
+        {/* 📅 Operational Date Display - Now Clickable */}
+        <div 
+          onClick={() => setCalendarOpen(true)}
+          className="hidden lg:flex items-center gap-3 px-4 py-2 bg-slate-50 border border-slate-100 rounded-xl mr-2 cursor-pointer hover:bg-slate-100 hover:border-[#c2a336]/30 transition-all group/cal"
+        >
+          <div className="p-1.5 bg-white rounded-lg shadow-sm text-[#c2a336] group-hover/cal:scale-110 transition-transform">
+            <Calendar size={18} />
+          </div>
+          <div className="flex flex-col">
+            <span className="text-[10px] font-black text-[#1a3a32] uppercase tracking-tighter leading-none">
+              Today's Briefing
+            </span>
+            <span className="text-[11px] font-bold text-slate-500 mt-0.5">
+              {format(new Date(), "eeee, MMM do")}
+            </span>
+          </div>
+        </div>
+
         {/* 🔔 Notifications Engine */}
         <div className="relative" ref={dropdownRef}>
           <button
@@ -106,7 +114,6 @@ const AdminHeader: React.FC = () => {
 
           {notifOpen && (
             <div className="absolute right-0 mt-4 w-[400px] flex flex-col bg-white border border-slate-200 rounded-2xl shadow-2xl z-50 overflow-hidden animate-in fade-in slide-in-from-top-2 duration-200">
-              {/* Dropdown Header */}
               <div className="p-4 border-b border-slate-100 flex justify-between items-center bg-slate-50/50">
                 <div>
                   <h3 className="font-black text-[#1a3a32] text-[11px] uppercase tracking-[0.2em]">
@@ -123,7 +130,6 @@ const AdminHeader: React.FC = () => {
                 )}
               </div>
 
-              {/* Notifications List */}
               <div className="max-h-[450px] overflow-y-auto custom-scrollbar">
                 {notifications.length === 0 ? (
                   <div className="py-12 flex flex-col items-center justify-center text-slate-400">
@@ -151,45 +157,20 @@ const AdminHeader: React.FC = () => {
 
                       <div className="flex-1">
                         <div className="flex justify-between items-start">
-                          <p
-                            className={`text-sm leading-none ${
-                              n.read ? "font-semibold" : "font-black"
-                            } text-[#1a3a32]`}
-                          >
+                          <p className={`text-sm leading-none ${n.read ? "font-semibold" : "font-black"} text-[#1a3a32]`}>
                             {n.title}
                           </p>
                           <span className="text-[10px] text-slate-400 font-medium whitespace-nowrap ml-2">
-                            {formatDistanceToNow(new Date(n.createdAt), {
-                              addSuffix: true,
-                            })}
+                            {formatDistanceToNow(new Date(n.createdAt), { addSuffix: true })}
                           </span>
                         </div>
-                        <p className="text-xs text-slate-600 mt-1.5 leading-relaxed">
-                          {n.message}
-                        </p>
-
-                        {/* Evidence Submission Tag */}
-                        {n.title === "Task Submitted" && (
-                          <span className="inline-block mt-2 px-2 py-0.5 rounded bg-emerald-100 text-emerald-700 text-[9px] font-bold uppercase tracking-tighter">
-                            New Evidence
-                          </span>
-                        )}
-
-                        {n.submittedBy && (
-                          <div className="flex items-center gap-2 mt-3 text-[10px] font-bold text-[#c2a336]">
-                            <User size={10} />
-                            <span>
-                              SOURCE: {n.submittedBy.name.toUpperCase()}
-                            </span>
-                          </div>
-                        )}
+                        <p className="text-xs text-slate-600 mt-1.5 leading-relaxed">{n.message}</p>
                       </div>
                     </div>
                   ))
                 )}
               </div>
 
-              {/* Dropdown Footer */}
               <button className="p-4 text-center text-[10px] font-black uppercase tracking-[0.25em] text-[#1a3a32] bg-slate-50 hover:bg-slate-100 transition-colors border-t border-slate-200">
                 View All Intelligence
               </button>
@@ -221,6 +202,12 @@ const AdminHeader: React.FC = () => {
           />
         </div>
       </div>
+
+      {/* --- Admin Calendar Modal --- */}
+      <AdminCalendarModal 
+        isOpen={calendarOpen} 
+        onClose={() => setCalendarOpen(false)} 
+      />
     </header>
   );
 };
