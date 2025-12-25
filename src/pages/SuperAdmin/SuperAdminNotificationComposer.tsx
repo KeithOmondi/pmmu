@@ -261,7 +261,7 @@ const SuperAdminNotificationComposer: React.FC = () => {
               ) : (
                 <>
                   <span className="text-xs font-black uppercase tracking-[0.3em]">
-                    Authorize Dispatch
+                    Send Message
                   </span>
                   <Send
                     size={16}

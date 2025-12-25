@@ -39,6 +39,7 @@ import AdminReports from "./pages/Admin/AdminReports";
 import AdminSettings from "./pages/Admin/AdminSettings";
 import SuperAdminSettings from "./pages/SuperAdmin/SuperAdminSettings";
 import SuperAdminLogs from "./pages/SuperAdmin/SuperAminLogs";
+import SuperAdminRejected from "./pages/SuperAdmin/SuperAdminRejected";
 
 const App = () => {
   const dispatch = useAppDispatch();
@@ -91,6 +92,7 @@ const App = () => {
             <Route path="indicators" element={<SuperAdminIndicators />} />
             <Route path="users" element={<SuperAdminUser />} />
             <Route path="approved" element={<SuperAdminApproved />} />
+            <Route path="rejected" element={<SuperAdminRejected />} />
             <Route path="reports" element={<SuperAdminReports />} />
             <Route path="notifications" element={<SuperAdminNotificationComposer />} />
             <Route path="settings" element={<SuperAdminSettings />} />

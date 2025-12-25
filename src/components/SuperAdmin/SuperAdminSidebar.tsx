@@ -110,6 +110,15 @@ const SuperAdminSidebar = () => {
           linkClass={linkClass}
         />
         <NavItem
+          to="/superadmin/rejected"
+          icon={<ClipboardList size={18} />}
+          label="All Rejected"
+          isCollapsed={isCollapsed}
+          activeClass={activeClass}
+          inactiveClass={inactiveClass}
+          linkClass={linkClass}
+        />
+        <NavItem
           to="/superadmin/users"
           icon={<Users size={18} />}
           label="System Users"
