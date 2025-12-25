@@ -53,11 +53,10 @@ const AdminDashboard = () => {
               System Oversight Active
             </div>
             <h1 className="text-3xl md:text-3xl font-black tracking-tight">
-              Institutional <span className="text-[#c2a336]">Intelligence</span>
+              Admin <span className="text-[#c2a336]">Dashboard</span>
             </h1>
             <p className="text-slate-400 max-w-lg font-medium leading-relaxed">
-              Monitoring judicial indicators and registry integrity across all
-              departments in real-time.
+              Overview of the General system
             </p>
           </div>
           <div className="flex gap-4">

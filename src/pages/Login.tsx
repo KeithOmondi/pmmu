@@ -54,7 +54,7 @@ const Login: React.FC = () => {
 
       // ✅ Role-based redirect
       if (user.role === "SuperAdmin") {
-        navigate("/superadmin", { replace: true });
+        navigate("/superadmin/dashboard", { replace: true });
       } else if (user.role === "Admin") {
         navigate("/admin/dashboard", { replace: true });
       } else {
