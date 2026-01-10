@@ -1,150 +1,100 @@
-// src/store/slices/reportsSlice.ts
-import {
-  createSlice,
-  createAsyncThunk,
-  type PayloadAction,
-} from "@reduxjs/toolkit";
-import type { RootState } from "../store";
+import { createSlice, createAsyncThunk, type PayloadAction } from "@reduxjs/toolkit";
 import api from "../../api/axios";
+import type { RootState } from "../store";
 
-// --- DTOs ---
-export type ReportType =
-  | "single"
-  | "general"
-  | "weekly"
-  | "monthly"
-  | "quarterly"
-  | "group";
+export type ReportType = "single" | "general" | "weekly" | "monthly" | "quarterly" | "group";
 
 export interface ReportRequestPayload {
   type: ReportType;
-  id?: string; // for single indicator
-  group?: string; // for group reports
+  id?: string;
+  userId?: string;
+  group?: string;
+  isAdmin?: boolean;
 }
 
-// --- Async Thunks ---
-// Fetch HTML report
-export const fetchReportHtml = createAsyncThunk<
-  string,
-  ReportRequestPayload,
-  { rejectValue: string }
->("reports/fetchHtml", async (payload, { rejectWithValue }) => {
-  try {
-    const response = await api.get("/reports/html", {
-      params: payload,
-      responseType: "text",
-    });
-    return response.data as string;
-  } catch (err: any) {
-    return rejectWithValue(
-      err?.response?.data?.message || "Failed to fetch HTML report"
-    );
-  }
-});
-
-// Fetch PDF report
-export const downloadReportPdf = createAsyncThunk<
-  Blob,
-  ReportRequestPayload,
-  { rejectValue: string }
->("reports/downloadPdf", async (payload, { rejectWithValue }) => {
-  try {
-    const response = await api.get("/reports/pdf", {
-      params: payload,
-      responseType: "blob", // important for binary data
-    });
-    return response.data as Blob;
-  } catch (err: any) {
-    return rejectWithValue(
-      err?.response?.data?.message || "Failed to download PDF report"
-    );
-  }
-});
-
-// --- Slice ---
 interface ReportsState {
-  loading: boolean;
-  error: string | null;
   lastReportHtml: string | null;
   lastPdfBlob: Blob | null;
+  loading: boolean;
+  generating: boolean; 
+  error: string | null;
 }
 
 const initialState: ReportsState = {
-  loading: false,
-  error: null,
   lastReportHtml: null,
   lastPdfBlob: null,
+  loading: false,
+  generating: false,
+  error: null,
 };
+
+const getEndpoint = (payload: ReportRequestPayload, format: "html" | "pdf") => {
+  if (payload.id && payload.type === "single") {
+    return format === "pdf" ? `/reports/getpdf/pdf/${payload.id}` : `/reports/gethtml/html/${payload.id}`;
+  }
+  if (payload.isAdmin) return `/reports/admin/get/${format}`;
+  return format === "pdf" ? "/reports/userpdf/pdf" : "/reports/userhtml/html";
+};
+
+export const fetchReportHtml = createAsyncThunk<string, ReportRequestPayload, { rejectValue: string }>(
+  "reports/fetchHtml", 
+  async (payload, { rejectWithValue }) => {
+    try {
+      const endpoint = getEndpoint(payload, "html");
+      const { data } = await api.get(endpoint, { params: payload, responseType: "text" });
+      return data;
+    } catch (err: any) {
+      return rejectWithValue(err.response?.data?.message || "Failed to fetch HTML preview");
+    }
+  }
+);
+
+export const downloadReportPdf = createAsyncThunk<Blob, ReportRequestPayload, { rejectValue: string }>(
+  "reports/downloadPdf", 
+  async (payload, { rejectWithValue }) => {
+    try {
+      const endpoint = getEndpoint(payload, "pdf");
+      const { data } = await api.get(endpoint, { params: payload, responseType: "blob" });
+      if (data.type === "application/json") {
+        const text = await data.text();
+        return rejectWithValue(JSON.parse(text).message || "Failed to generate PDF");
+      }
+      return data;
+    } catch (err: any) {
+      return rejectWithValue(err.response?.data?.message || "PDF download failed");
+    }
+  }
+);
 
 const reportsSlice = createSlice({
   name: "reports",
   initialState,
   reducers: {
-    clearReportHtml(state) {
-      state.lastReportHtml = null;
-    },
-    clearPdf(state) {
-      state.lastPdfBlob = null;
-    },
-    clearError(state) {
-      state.error = null;
-    },
+    clearReportsError: (state) => { state.error = null; },
+    clearPdf: (state) => { state.lastPdfBlob = null; },
+    clearReportHtml: (state) => { state.lastReportHtml = null; },
+    resetReportsState: () => initialState,
   },
   extraReducers: (builder) => {
-    // HTML report
     builder
-      .addCase(fetchReportHtml.pending, (state) => {
-        state.loading = true;
-        state.error = null;
-        state.lastReportHtml = null;
-      })
-      .addCase(
-        fetchReportHtml.fulfilled,
-        (state, action: PayloadAction<string>) => {
+      .addCase(fetchReportHtml.pending, (state) => { state.loading = true; state.error = null; })
+      .addCase(fetchReportHtml.fulfilled, (state, action) => { state.loading = false; state.lastReportHtml = action.payload; })
+      .addCase(downloadReportPdf.pending, (state) => { state.generating = true; state.error = null; })
+      .addCase(downloadReportPdf.fulfilled, (state, action) => { state.generating = false; state.lastPdfBlob = action.payload; })
+      .addMatcher(
+        (action) => action.type.startsWith("reports/") && action.type.endsWith("/rejected"),
+        (state, action: PayloadAction<any>) => {
           state.loading = false;
-          state.lastReportHtml = action.payload;
-        }
-      )
-      .addCase(
-        fetchReportHtml.rejected,
-        (state, action: PayloadAction<string | undefined>) => {
-          state.loading = false;
-          state.error = action.payload ?? "Failed to fetch HTML report";
-        }
-      );
-
-    // PDF report
-    builder
-      .addCase(downloadReportPdf.pending, (state) => {
-        state.loading = true;
-        state.error = null;
-        state.lastPdfBlob = null;
-      })
-      .addCase(
-        downloadReportPdf.fulfilled,
-        (state, action: PayloadAction<Blob>) => {
-          state.loading = false;
-          state.lastPdfBlob = action.payload;
-        }
-      )
-      .addCase(
-        downloadReportPdf.rejected,
-        (state, action: PayloadAction<string | undefined>) => {
-          state.loading = false;
-          state.error = action.payload ?? "Failed to download PDF report";
+          state.generating = false;
+          state.error = action.payload ?? "An unexpected error occurred";
         }
       );
   },
 });
 
-export const { clearReportHtml, clearPdf, clearError } = reportsSlice.actions;
-
-// --- Selectors ---
-export const selectReportsLoading = (state: RootState) => state.reports.loading;
-export const selectReportsError = (state: RootState) => state.reports.error;
-export const selectLastReportHtml = (state: RootState) =>
-  state.reports.lastReportHtml;
-export const selectLastPdfBlob = (state: RootState) =>
-  state.reports.lastPdfBlob;
-
+export const { clearReportsError, clearPdf, clearReportHtml, resetReportsState } = reportsSlice.actions;
 export default reportsSlice.reducer;
+
+export const selectLastReportHtml = (state: RootState) => state.reports.lastReportHtml;
+export const selectLastPdfBlob = (state: RootState) => state.reports.lastPdfBlob;
+export const selectReportsLoading = (state: RootState) => state.reports.loading;

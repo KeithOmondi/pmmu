@@ -1,8 +1,8 @@
 // src/pages/Admin/SubmittedIndicators.tsx
-import React, { useEffect, useMemo } from "react";
+import React, { useEffect } from "react";
 import { useAppDispatch, useAppSelector } from "../../store/hooks";
 import {
-  fetchAllIndicatorsForAdmin,
+  fetchSubmittedIndicators,
   selectAllIndicators,
   selectIndicatorsLoading,
 } from "../../store/slices/indicatorsSlice";
@@ -18,8 +18,8 @@ import {
   Inbox,
   FileCheck,
   Clock,
-  Filter,
   ChevronRight,
+  Filter,
 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 
@@ -35,17 +35,10 @@ const SubmittedIndicators: React.FC = () => {
   const isLoading = indicatorsLoading || usersLoading;
 
   useEffect(() => {
-    dispatch(fetchAllIndicatorsForAdmin());
+    // Fetch only submitted indicators (pending + approved)
+    dispatch(fetchSubmittedIndicators());
     dispatch(fetchUsers());
   }, [dispatch]);
-
-  const submittedIndicators = useMemo(
-    () =>
-      indicators.filter(
-        (i) => i.status === "pending" || i.status === "approved"
-      ),
-    [indicators]
-  );
 
   const getUserName = (id: string | null) => {
     if (!id) return "-";
@@ -84,14 +77,14 @@ const SubmittedIndicators: React.FC = () => {
             Filter
           </button>
           <div className="flex-1 md:flex-none px-4 py-2.5 bg-[#1a3a32] text-[#c2a336] rounded-xl text-xs sm:text-sm font-bold text-center border border-[#c2a336]/20">
-            {submittedIndicators.length}{" "}
+            {indicators.length}{" "}
             <span className="hidden sm:inline">Submissions</span>
             <span className="sm:hidden">Total</span>
           </div>
         </div>
       </div>
 
-      {!submittedIndicators.length ? (
+      {!indicators.length ? (
         <div className="bg-white rounded-3xl p-12 sm:p-20 text-center border border-gray-100 shadow-sm">
           <FileCheck className="w-16 h-16 text-gray-200 mx-auto mb-4" />
           <p className="text-[#8c94a4] font-semibold text-lg">
@@ -105,12 +98,8 @@ const SubmittedIndicators: React.FC = () => {
             <table className="min-w-full text-sm">
               <thead>
                 <tr className="bg-[#fcfcfc] text-[#8c94a4] uppercase text-[10px] tracking-[0.15em] border-b border-gray-100">
-                  <th className="px-6 py-5 text-left font-black">
-                    Indicator / Context
-                  </th>
-                  <th className="px-6 py-5 text-left font-black">
-                    Reporting Official
-                  </th>
+                  <th className="px-6 py-5 text-left font-black">Indicator / Context</th>
+                  <th className="px-6 py-5 text-left font-black">Reporting Official</th>
                   <th className="px-6 py-5 text-left font-black">Timeline</th>
                   <th className="px-6 py-5 text-left font-black">Progress</th>
                   <th className="px-6 py-5 text-center font-black">Status</th>
@@ -118,18 +107,14 @@ const SubmittedIndicators: React.FC = () => {
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100">
-                {submittedIndicators.map((i) => (
-                  <tr
-                    key={i._id}
-                    className="hover:bg-[#f4f0e6]/30 transition-colors group"
-                  >
+                {indicators.map((i) => (
+                  <tr key={i._id} className="hover:bg-[#f4f0e6]/30 transition-colors group">
                     <td className="px-6 py-5">
                       <div className="font-bold text-[#1a3a32] group-hover:text-[#c2a336] transition-colors line-clamp-1">
                         {i.indicatorTitle}
                       </div>
                       <div className="text-[11px] text-[#8c94a4] font-medium mt-0.5 uppercase tracking-tighter">
-                        {i.category?.title} &rsaquo;{" "}
-                        {i.level2Category?.title ?? "General"}
+                        {i.category?.title} &rsaquo; {i.level2Category?.title ?? "General"}
                       </div>
                     </td>
                     <td className="px-6 py-5">
@@ -138,9 +123,7 @@ const SubmittedIndicators: React.FC = () => {
                           <UserIcon size={14} />
                         </div>
                         <span className="font-bold text-gray-700 text-xs">
-                          {i.assignedToType === "individual"
-                            ? getUserName(i.assignedTo)
-                            : "Group Submission"}
+                          {i.assignedToType === "individual" ? getUserName(i.assignedTo) : "Group Submission"}
                         </span>
                       </div>
                     </td>
@@ -153,23 +136,14 @@ const SubmittedIndicators: React.FC = () => {
                     <td className="px-6 py-5">
                       <div className="flex items-center gap-3">
                         <div className="flex-1 bg-gray-100 h-1.5 rounded-full max-w-[60px] overflow-hidden">
-                          <div
-                            className="bg-[#1a3a32] h-full rounded-full"
-                            style={{ width: `${i.progress}%` }}
-                          />
+                          <div className="bg-[#1a3a32] h-full rounded-full" style={{ width: `${i.progress}%` }} />
                         </div>
-                        <span className="text-[11px] font-black text-[#1a3a32]">
-                          {i.progress}%
-                        </span>
+                        <span className="text-[11px] font-black text-[#1a3a32]">{i.progress}%</span>
                       </div>
                     </td>
                     <td className="px-6 py-5">
                       <div className="flex justify-center">
-                        <span
-                          className={`px-4 py-1 rounded-full text-[10px] font-black uppercase tracking-widest border ${getStatusStyles(
-                            i.status
-                          )}`}
-                        >
+                        <span className={`px-4 py-1 rounded-full text-[10px] font-black uppercase tracking-widest border ${getStatusStyles(i.status)}`}>
                           {i.status}
                         </span>
                       </div>
@@ -190,18 +164,10 @@ const SubmittedIndicators: React.FC = () => {
 
           {/* MOBILE CARD VIEW */}
           <div className="md:hidden divide-y divide-gray-50">
-            {submittedIndicators.map((i) => (
-              <div
-                key={i._id}
-                className="p-5 active:bg-gray-50 transition-colors"
-                onClick={() => navigate(`/admin/submitted/${i._id}`)}
-              >
+            {indicators.map((i) => (
+              <div key={i._id} className="p-5 active:bg-gray-50 transition-colors" onClick={() => navigate(`/admin/submitted/${i._id}`)}>
                 <div className="flex justify-between items-start mb-3">
-                  <span
-                    className={`px-3 py-0.5 rounded-lg text-[9px] font-black uppercase border ${getStatusStyles(
-                      i.status
-                    )}`}
-                  >
+                  <span className={`px-3 py-0.5 rounded-lg text-[9px] font-black uppercase border ${getStatusStyles(i.status)}`}>
                     {i.status}
                   </span>
                   <div className="flex items-center gap-1 text-[10px] font-bold text-gray-400 uppercase tabular-nums">
@@ -210,12 +176,8 @@ const SubmittedIndicators: React.FC = () => {
                   </div>
                 </div>
 
-                <h4 className="font-bold text-[#1a3a32] text-sm leading-tight mb-1">
-                  {i.indicatorTitle}
-                </h4>
-                <p className="text-[10px] text-[#8c94a4] font-medium uppercase mb-4">
-                  {i.level2Category?.title ?? "General Indicator"}
-                </p>
+                <h4 className="font-bold text-[#1a3a32] text-sm leading-tight mb-1">{i.indicatorTitle}</h4>
+                <p className="text-[10px] text-[#8c94a4] font-medium uppercase mb-4">{i.level2Category?.title ?? "General Indicator"}</p>
 
                 <div className="flex items-center justify-between bg-gray-50 p-3 rounded-xl">
                   <div className="flex items-center gap-2">
@@ -223,20 +185,13 @@ const SubmittedIndicators: React.FC = () => {
                       <UserIcon size={12} className="text-[#c2a336]" />
                     </div>
                     <span className="text-[11px] font-bold text-[#1a3a32] truncate max-w-[120px]">
-                      {i.assignedToType === "individual"
-                        ? getUserName(i.assignedTo)
-                        : "Group"}
+                      {i.assignedToType === "individual" ? getUserName(i.assignedTo) : "Group"}
                     </span>
                   </div>
                   <div className="flex items-center gap-2">
-                    <span className="text-[10px] font-black text-[#1a3a32]">
-                      {i.progress}%
-                    </span>
+                    <span className="text-[10px] font-black text-[#1a3a32]">{i.progress}%</span>
                     <div className="w-12 bg-gray-200 h-1.5 rounded-full overflow-hidden">
-                      <div
-                        className="bg-[#1a3a32] h-full"
-                        style={{ width: `${i.progress}%` }}
-                      />
+                      <div className="bg-[#1a3a32] h-full" style={{ width: `${i.progress}%` }} />
                     </div>
                   </div>
                 </div>

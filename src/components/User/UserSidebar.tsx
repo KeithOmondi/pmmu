@@ -96,7 +96,7 @@ const UserSidebar = () => {
         <SidebarLink
           to="/user/dashboard"
           icon={<LayoutDashboard size={18} />}
-          label="Executive Desk"
+          label="Dashboard"
           isCollapsed={isCollapsed}
           baseClass={linkClass}
           activeClass={activeClass}
@@ -114,7 +114,7 @@ const UserSidebar = () => {
         <SidebarLink
           to="/user/profile"
           icon={<UserCircle size={18} />}
-          label="Personnel Profile"
+          label="Profile"
           isCollapsed={isCollapsed}
           baseClass={linkClass}
           activeClass={activeClass}

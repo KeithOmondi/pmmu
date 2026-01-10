@@ -3,7 +3,6 @@ import { NavLink, useNavigate } from "react-router-dom";
 import {
   LayoutDashboard,
   FileText,
-  Users,
   BarChart3,
   Settings,
   ShieldCheck,
@@ -127,15 +126,7 @@ const AdminSidebar = () => {
               inactiveClass={inactiveClass}
               linkClass={linkClass}
             />
-            <SidebarLink
-              to="/admin/users"
-              icon={<Users size={18} />}
-              label="Manage Users"
-              isCollapsed={isCollapsed}
-              activeClass={activeClass}
-              inactiveClass={inactiveClass}
-              linkClass={linkClass}
-            />
+            
           </div>
 
           <div className={`my-6 border-t border-white/5 pt-6 ${isCollapsed ? "px-0" : ""}`}>

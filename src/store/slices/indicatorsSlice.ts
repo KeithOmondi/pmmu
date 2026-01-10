@@ -1,3 +1,4 @@
+// src/store/slices/indicatorsSlice.ts
 import {
   createSlice,
   createAsyncThunk,
@@ -6,9 +7,31 @@ import {
 import type { RootState } from "../store";
 import api from "../../api/axios";
 import { addNotification } from "./notificationsSlice";
+import type { AxiosError } from "axios";
 
-export type IndicatorStatus = "pending" | "approved" | "rejected" | "overdue";
+/* =====================================
+   TYPES & INTERFACES
+===================================== */
+export type IndicatorStatus =
+  | "pending"
+  | "submitted"
+  | "approved"
+  | "completed"
+  | "rejected"
+  | "overdue";
+
 export type AssignedToType = "individual" | "group";
+
+export interface IEvidence {
+  type: "file";
+  fileUrl: string;
+  fileName: string;
+  publicId: string;
+  fileType: string;
+  fileSize: number;
+  description?: string;
+  createdAt?: string; // Ensure createdAt is always tracked
+}
 
 export interface ICategoryRef {
   _id: string;
@@ -29,35 +52,38 @@ export interface IIndicator {
   dueDate: string;
   progress: number;
   notes: unknown[];
-  evidence: any[];
+  evidence: IEvidence[];
   status: IndicatorStatus;
-  createdBy: string | null;
-  reviewedBy: string | null;
+  result?: "pass" | "fail" | null;
+  createdBy: any;
+  reviewedBy: any;
   reviewedAt: string | null;
   calendarEvent?: Record<string, unknown> | null;
   createdAt: string;
   updatedAt: string;
-  
 }
 
-// --- DTOs (Payloads) ---
+/* =====================================
+   PAYLOADS
+===================================== */
 export interface CreateIndicatorPayload {
   categoryId: string;
   level2CategoryId: string;
-  indicatorId?: string; // optional now
+  indicatorId: string;
   unitOfMeasure: string;
   assignedToType: AssignedToType;
   assignedTo?: string;
   assignedGroup?: string[];
   startDate: string;
   dueDate: string;
-  notes?: unknown[];
   calendarEvent?: Record<string, unknown>;
 }
 
 export interface UpdateIndicatorPayload {
   id: string;
-  updates: Partial<CreateIndicatorPayload>;
+  updates: Partial<
+    Omit<IIndicator, "_id" | "indicatorTitle" | "createdBy" | "createdAt">
+  >;
 }
 
 export interface SubmitEvidencePayload {
@@ -66,34 +92,54 @@ export interface SubmitEvidencePayload {
   descriptions?: string[];
 }
 
-// --- Helpers ---
+export interface DownloadEvidencePayload {
+  publicId: string;
+  fileName: string;
+}
+
+/* =====================================
+   HELPERS
+===================================== */
 const normalizeIndicator = (i: any): IIndicator => ({
   _id: i._id,
   indicatorTitle: i.indicatorTitle ?? "",
   category: i.category ?? null,
   level2Category: i.level2Category ?? null,
   unitOfMeasure: i.unitOfMeasure ?? "",
-  assignedToType: i.assignedToType,
+  assignedToType: i.assignedToType ?? "individual",
   assignedTo: i.assignedTo ?? null,
   assignedGroup: Array.isArray(i.assignedGroup) ? i.assignedGroup : [],
-  startDate: i.startDate,
-  dueDate: i.dueDate,
+  startDate: i.startDate ?? "",
+  dueDate: i.dueDate ?? "",
   progress: i.progress ?? 0,
   notes: Array.isArray(i.notes) ? i.notes : [],
-  evidence: Array.isArray(i.evidence) ? i.evidence : [],
+  evidence: Array.isArray(i.evidence)
+    ? i.evidence.map((e: any) => ({
+        ...e,
+        createdAt: e.createdAt ?? new Date().toISOString(), // Ensure createdAt exists
+      }))
+    : [],
   status: i.status ?? "pending",
+  result: i.result ?? null,
   createdBy: i.createdBy ?? null,
   reviewedBy: i.reviewedBy ?? null,
   reviewedAt: i.reviewedAt ?? null,
   calendarEvent: i.calendarEvent ?? null,
-  createdAt: i.createdAt,
-  updatedAt: i.updatedAt,
+  createdAt: i.createdAt ?? "",
+  updatedAt: i.updatedAt ?? "",
 });
 
-const handleError = (err: any, fallback: string) =>
-  err?.response?.data?.message || fallback;
+const handleError = (err: unknown, fallback: string) => {
+  if (err && typeof err === "object" && "isAxiosError" in err) {
+    const axiosErr = err as AxiosError<{ message?: string }>;
+    return axiosErr.response?.data?.message ?? fallback;
+  }
+  return (err as Error)?.message ?? fallback;
+};
 
-// --- Async Thunks ---
+/* =====================================
+   ASYNC THUNKS
+===================================== */
 export const createIndicator = createAsyncThunk<
   IIndicator,
   CreateIndicatorPayload,
@@ -129,7 +175,7 @@ export const fetchUserIndicators = createAsyncThunk<
     const { data } = await api.get("/indicators/my");
     return data.indicators.map(normalizeIndicator);
   } catch (err) {
-    return rejectWithValue(handleError(err, "Failed to fetch user indicators"));
+    return rejectWithValue(handleError(err, "Failed to fetch indicators"));
   }
 });
 
@@ -142,7 +188,20 @@ export const fetchAllIndicatorsForAdmin = createAsyncThunk<
     const { data } = await api.get("/indicators/all");
     return data.indicators.map(normalizeIndicator);
   } catch (err) {
-    return rejectWithValue(handleError(err, "Failed to fetch indicators"));
+    return rejectWithValue(handleError(err, "Failed to fetch all indicators"));
+  }
+});
+
+export const fetchSubmittedIndicators = createAsyncThunk<
+  IIndicator[],
+  void,
+  { rejectValue: string }
+>("indicators/fetchSubmitted", async (_, { rejectWithValue }) => {
+  try {
+    const { data } = await api.get("/indicators/submitted");
+    return data.indicators.map(normalizeIndicator);
+  } catch (err) {
+    return rejectWithValue(handleError(err, "Failed to fetch submissions"));
   }
 });
 
@@ -155,25 +214,24 @@ export const deleteIndicator = createAsyncThunk<
     await api.delete(`/indicators/delete/${id}`);
     return id;
   } catch (err) {
-    return rejectWithValue(handleError(err, "Failed to delete indicator"));
+    return rejectWithValue(handleError(err, "Delete failed"));
   }
 });
 
-
-
+/* =====================================
+   SUBMIT EVIDENCE
+===================================== */
 export const submitIndicatorEvidence = createAsyncThunk<
   IIndicator,
   SubmitEvidencePayload,
-  { rejectValue: string; state: RootState }
+  { rejectValue: string }
 >(
   "indicators/submitEvidence",
-  async ({ id, files, descriptions }, thunkAPI) => {
+  async ({ id, files, descriptions }, { dispatch, rejectWithValue }) => {
     try {
       const formData = new FormData();
-      files.forEach((file, idx) => {
-        formData.append("evidence", file);
-        formData.append("descriptions", descriptions?.[idx] || "");
-      });
+      files.forEach((file) => formData.append("files", file));
+      descriptions?.forEach((desc) => formData.append("descriptions", desc));
 
       const { data } = await api.post(`/indicators/submit/${id}`, formData, {
         headers: { "Content-Type": "multipart/form-data" },
@@ -181,12 +239,11 @@ export const submitIndicatorEvidence = createAsyncThunk<
 
       const indicator = normalizeIndicator(data.indicator);
 
-      // --- Dispatch notification to header ---
-      thunkAPI.dispatch(
+      dispatch(
         addNotification({
-          _id: `notif-${Date.now()}`, // temp ID
-          title: "Task Submitted",
-          message: `Evidence for "${indicator.indicatorTitle}" has been submitted.`,
+          _id: `notif-${Date.now()}`,
+          title: "Submission Successful",
+          message: `Evidence for "${indicator.indicatorTitle}" uploaded.`,
           read: false,
           createdAt: new Date().toISOString(),
         })
@@ -194,20 +251,74 @@ export const submitIndicatorEvidence = createAsyncThunk<
 
       return indicator;
     } catch (err) {
-      return thunkAPI.rejectWithValue(
-        handleError(err, "Failed to submit evidence")
-      );
+      return rejectWithValue(handleError(err, "Evidence submission failed"));
     }
   }
 );
 
+/* =====================================
+   DOWNLOAD / APPROVE / REJECT
+===================================== */
+export const downloadEvidence = createAsyncThunk<
+  void,
+  DownloadEvidencePayload,
+  { rejectValue: string }
+>(
+  "indicators/downloadEvidence",
+  async ({ publicId, fileName }, { rejectWithValue }) => {
+    try {
+      const response = await api.get(`/indicators/evidence/${publicId}`, {
+        responseType: "blob",
+      });
+      const url = URL.createObjectURL(new Blob([response.data]));
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = fileName;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+    } catch {
+      return rejectWithValue("Failed to download evidence");
+    }
+  }
+);
 
+export const approveIndicator = createAsyncThunk<
+  IIndicator,
+  string,
+  { rejectValue: string }
+>("indicators/approve", async (id, { rejectWithValue }) => {
+  try {
+    const { data } = await api.put(`/indicators/approve/${id}`);
+    return normalizeIndicator(data.indicator);
+  } catch (err) {
+    return rejectWithValue(handleError(err, "Approval failed"));
+  }
+});
 
-// --- Slice ---
+export const rejectIndicator = createAsyncThunk<
+  IIndicator,
+  string,
+  { rejectValue: string }
+>("indicators/reject", async (id, { rejectWithValue }) => {
+  try {
+    const { data } = await api.put(`/indicators/reject/${id}`);
+    return normalizeIndicator(data.indicator);
+  } catch (err) {
+    return rejectWithValue(handleError(err, "Rejection failed"));
+  }
+});
+
+/* =====================================
+   SLICE
+===================================== */
 interface IndicatorState {
   userIndicators: IIndicator[];
   allIndicators: IIndicator[];
+  submittedIndicators: IIndicator[];
   loading: boolean;
+  submittingEvidence: boolean;
   error: string | null;
   successMessage: string | null;
 }
@@ -215,10 +326,15 @@ interface IndicatorState {
 const initialState: IndicatorState = {
   userIndicators: [],
   allIndicators: [],
+  submittedIndicators: [],
   loading: false,
+  submittingEvidence: false,
   error: null,
   successMessage: null,
 };
+
+const updateList = (list: IIndicator[], updated: IIndicator) =>
+  list.map((i) => (i._id === updated._id ? updated : i));
 
 const indicatorSlice = createSlice({
   name: "indicators",
@@ -231,72 +347,91 @@ const indicatorSlice = createSlice({
   },
   extraReducers: (builder) => {
     builder
-      .addCase(createIndicator.fulfilled, (state, action) => {
-        state.allIndicators.unshift(action.payload);
-        state.successMessage = "Indicator created successfully";
+      /* ----------------- Evidence Submission ----------------- */
+      .addCase(submitIndicatorEvidence.pending, (s) => {
+        s.submittingEvidence = true;
+        s.error = null;
       })
-      .addCase(updateIndicator.fulfilled, (state, action) => {
-        state.userIndicators = state.userIndicators.map((i) =>
-          i._id === action.payload._id ? action.payload : i
-        );
-        state.allIndicators = state.allIndicators.map((i) =>
-          i._id === action.payload._id ? action.payload : i
+      .addCase(submitIndicatorEvidence.fulfilled, (s, a) => {
+        s.submittingEvidence = false;
+        s.userIndicators = updateList(s.userIndicators, a.payload);
+        s.allIndicators = updateList(s.allIndicators, a.payload);
+        s.submittedIndicators = updateList(s.submittedIndicators, a.payload);
+      })
+      .addCase(
+        submitIndicatorEvidence.rejected,
+        (s, a: PayloadAction<string | undefined>) => {
+          s.submittingEvidence = false;
+          s.error = a.payload ?? "Failed to submit evidence";
+        }
+      )
+
+      /* ----------------- Other Fulfilled Actions ----------------- */
+      .addCase(updateIndicator.fulfilled, (s, a) => {
+        s.userIndicators = updateList(s.userIndicators, a.payload);
+        s.allIndicators = updateList(s.allIndicators, a.payload);
+        s.submittedIndicators = updateList(s.submittedIndicators, a.payload);
+      })
+      .addCase(approveIndicator.fulfilled, (s, a) => {
+        s.submittedIndicators = updateList(s.submittedIndicators, a.payload);
+      })
+      .addCase(rejectIndicator.fulfilled, (s, a) => {
+        s.submittedIndicators = updateList(s.submittedIndicators, a.payload);
+      })
+      .addCase(fetchUserIndicators.fulfilled, (s, a) => {
+        s.userIndicators = a.payload;
+      })
+      .addCase(fetchAllIndicatorsForAdmin.fulfilled, (s, a) => {
+        s.allIndicators = a.payload;
+      })
+      .addCase(fetchSubmittedIndicators.fulfilled, (s, a) => {
+        s.submittedIndicators = a.payload;
+      })
+      .addCase(deleteIndicator.fulfilled, (s, a) => {
+        s.userIndicators = s.userIndicators.filter((i) => i._id !== a.payload);
+        s.allIndicators = s.allIndicators.filter((i) => i._id !== a.payload);
+        s.submittedIndicators = s.submittedIndicators.filter(
+          (i) => i._id !== a.payload
         );
       })
-      .addCase(fetchUserIndicators.fulfilled, (state, action) => {
-        state.userIndicators = action.payload;
-      })
-      .addCase(fetchAllIndicatorsForAdmin.fulfilled, (state, action) => {
-        state.allIndicators = action.payload;
-      })
-      .addCase(deleteIndicator.fulfilled, (state, action) => {
-        state.userIndicators = state.userIndicators.filter(
-          (i) => i._id !== action.payload
-        );
-        state.allIndicators = state.allIndicators.filter(
-          (i) => i._id !== action.payload
-        );
-      })
-      .addCase(submitIndicatorEvidence.fulfilled, (state, action) => {
-        state.userIndicators = state.userIndicators.map((i) =>
-          i._id === action.payload._id ? action.payload : i
-        );
-        state.allIndicators = state.allIndicators.map((i) =>
-          i._id === action.payload._id ? action.payload : i
-        );
-        state.successMessage = "Evidence submitted successfully";
-      })
+
+      /* ----------------- Generic Loading/Error ----------------- */
       .addMatcher(
         (a) => a.type.startsWith("indicators/") && a.type.endsWith("/pending"),
-        (state) => {
-          state.loading = true;
-          state.error = null;
+        (s) => {
+          s.loading = true;
+          s.error = null;
         }
       )
       .addMatcher(
         (a) =>
           a.type.startsWith("indicators/") && a.type.endsWith("/fulfilled"),
-        (state) => {
-          state.loading = false;
+        (s) => {
+          s.loading = false;
         }
       )
       .addMatcher(
         (a) => a.type.startsWith("indicators/") && a.type.endsWith("/rejected"),
-        (state, action: PayloadAction<string | undefined>) => {
-          state.loading = false;
-          state.error = action.payload ?? "Something went wrong";
+        (s, a: PayloadAction<string | undefined>) => {
+          s.loading = false;
+          s.error = a.payload ?? "Unexpected error";
         }
       );
   },
 });
 
+/* =====================================
+   SELECTORS & EXPORTS
+===================================== */
 export const selectUserIndicators = (s: RootState) =>
   s.indicators.userIndicators;
 export const selectAllIndicators = (s: RootState) => s.indicators.allIndicators;
+export const selectSubmittedIndicators = (s: RootState) =>
+  s.indicators.submittedIndicators;
 export const selectIndicatorsLoading = (s: RootState) => s.indicators.loading;
+export const selectSubmittingEvidence = (s: RootState) =>
+  s.indicators.submittingEvidence;
 export const selectIndicatorsError = (s: RootState) => s.indicators.error;
-export const selectIndicatorsMessage = (s: RootState) =>
-  s.indicators.successMessage;
 
 export const { clearMessages } = indicatorSlice.actions;
 export default indicatorSlice.reducer;

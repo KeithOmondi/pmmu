@@ -1,3 +1,4 @@
+// src/pages/SuperAdmin/SuperAdminIndicators.tsx
 import React, { useEffect, useMemo, useState } from "react";
 import toast from "react-hot-toast";
 import { 
@@ -42,6 +43,35 @@ interface GroupedIndicators {
   indicators: IIndicator[];
 }
 
+/* ============================================================
+   UTILITY: Compute effective status
+============================================================ */
+const getEffectiveStatus = (row: IIndicator) => {
+  const now = Date.now();
+  const dueTime = row.dueDate ? new Date(row.dueDate).getTime() : Infinity;
+
+  if (row.status === "approved" || row.status === "completed") return row.status;
+  if (dueTime < now) return "overdue";
+  return row.status;
+};
+
+/* ============================================================
+   UTILITY: Status Styles
+============================================================ */
+const getStatusStyles = (status: string) => {
+  const styles: Record<string, string> = {
+    approved: "bg-emerald-50 text-emerald-700 border-emerald-100",
+    completed: "bg-green-50 text-green-700 border-green-200",
+    pending: "bg-[#c2a336]/10 text-[#a88a2d] border-[#c2a336]/20",
+    rejected: "bg-rose-50 text-rose-700 border-rose-100",
+    overdue: "bg-slate-100 text-slate-700 border-slate-200",
+  };
+  return styles[status] || styles.pending;
+};
+
+/* ============================================================
+   MAIN COMPONENT
+============================================================ */
 const SuperAdminIndicators: React.FC = () => {
   const dispatch = useAppDispatch();
   const [showForm, setShowForm] = useState(false);
@@ -102,9 +132,9 @@ const SuperAdminIndicators: React.FC = () => {
             Registry Management
           </div>
           <h1 className="text-3xl font-black text-[#1a3a32] tracking-tight">
-            Institutional Indicators
+            Indicators 
           </h1>
-          <p className="text-slate-500 text-sm mt-1 font-medium">Configure and assign institutional performance metrics.</p>
+          <p className="text-slate-500 text-sm mt-1 font-medium">View all Assigned Indicators</p>
         </div>
 
         <button
@@ -173,54 +203,44 @@ const SuperAdminIndicators: React.FC = () => {
 };
 
 /* ============================================================
-    STATUS STYLING (Judiciary Palette)
-============================================================ */
-const getStatusStyles = (status: string) => {
-  const styles: Record<string, string> = {
-    approved: "bg-emerald-50 text-emerald-700 border-emerald-100",
-    pending: "bg-[#c2a336]/10 text-[#a88a2d] border-[#c2a336]/20",
-    rejected: "bg-rose-50 text-rose-700 border-rose-100",
-    overdue: "bg-slate-100 text-slate-700 border-slate-200",
-  };
-  return styles[status] || styles.pending;
-};
-
-/* ============================================================
     SUB-COMPONENT: MOBILE CARD
 ============================================================ */
-const IndicatorMobileCard = ({ row, getUserName }: { row: IIndicator; getUserName: any }) => (
-  <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm hover:border-[#c2a336]/50 transition-all">
-    <div className="flex justify-between items-start mb-4">
-      <span className="px-2 py-1 bg-slate-50 text-slate-500 rounded text-[9px] font-black uppercase tracking-widest border border-slate-100">
-        {row.level2Category?.title || "Standard"}
-      </span>
-      <span className={`px-2 py-0.5 text-[9px] font-black rounded border uppercase tracking-widest ${getStatusStyles(row.status)}`}>
-        {row.status}
-      </span>
-    </div>
-    
-    <h3 className="font-bold text-[#1a3a32] mb-5 leading-snug">
-      {row.indicatorTitle}
-    </h3>
+const IndicatorMobileCard = ({ row, getUserName }: { row: IIndicator; getUserName: any }) => {
+  const status = getEffectiveStatus(row);
+  return (
+    <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm hover:border-[#c2a336]/50 transition-all">
+      <div className="flex justify-between items-start mb-4">
+        <span className="px-2 py-1 bg-slate-50 text-slate-500 rounded text-[9px] font-black uppercase tracking-widest border border-slate-100">
+          {row.level2Category?.title || "Standard"}
+        </span>
+        <span className={`px-2 py-0.5 text-[9px] font-black rounded border uppercase tracking-widest ${getStatusStyles(status)}`}>
+          {status}
+        </span>
+      </div>
+      
+      <h3 className="font-bold text-[#1a3a32] mb-5 leading-snug">
+        {row.indicatorTitle}
+      </h3>
 
-    <div className="grid grid-cols-2 gap-4 pt-4 border-t border-slate-50">
-      <div>
-        <p className="text-[9px] text-slate-400 uppercase font-black tracking-tighter mb-1">Assigned Personnel</p>
-        <div className="flex items-center gap-2 text-xs font-bold text-slate-700">
-          <User size={12} className="text-[#c2a336]"/>
-          <span className="truncate">{row.assignedToType === 'individual' ? getUserName(row.assignedTo) : 'Registry Group'}</span>
+      <div className="grid grid-cols-2 gap-4 pt-4 border-t border-slate-50">
+        <div>
+          <p className="text-[9px] text-slate-400 uppercase font-black tracking-tighter mb-1">Assigned Personnel</p>
+          <div className="flex items-center gap-2 text-xs font-bold text-slate-700">
+            <User size={12} className="text-[#c2a336]"/>
+            <span className="truncate">{row.assignedToType === 'individual' ? getUserName(row.assignedTo) : 'Registry Group'}</span>
+          </div>
         </div>
-      </div>
-      <div>
-        <p className="text-[9px] text-slate-400 uppercase font-black tracking-tighter mb-1">Due Date</p>
-        <div className="flex items-center gap-2 text-xs font-bold text-slate-700">
-          <Clock size={12} className="text-[#c2a336]"/>
-          <span className="tabular-nums">{row.dueDate ? new Date(row.dueDate).toLocaleDateString() : 'N/A'}</span>
+        <div>
+          <p className="text-[9px] text-slate-400 uppercase font-black tracking-tighter mb-1">Due Date</p>
+          <div className="flex items-center gap-2 text-xs font-bold text-slate-700">
+            <Clock size={12} className="text-[#c2a336]"/>
+            <span className="tabular-nums">{row.dueDate ? new Date(row.dueDate).toLocaleDateString() : 'N/A'}</span>
+          </div>
         </div>
       </div>
     </div>
-  </div>
-);
+  );
+};
 
 /* ============================================================
     SUB-COMPONENT: DESKTOP TABLE
@@ -239,43 +259,46 @@ const IndicatorsTable = ({ rows, getUserName }: { rows: IIndicator[]; getUserNam
         </tr>
       </thead>
       <tbody className="divide-y divide-slate-100">
-        {rows.map((row) => (
-          <tr key={row._id} className="group hover:bg-[#1a3a32]/[0.02] transition-colors cursor-pointer">
-            <td className="px-6 py-5">
-              <span className="text-[10px] font-bold text-slate-500 uppercase tracking-tight">
-                {row.level2Category?.title || "—"}
-              </span>
-            </td>
-            <td className="px-6 py-5">
-              <div className="font-bold text-[#1a3a32] group-hover:text-[#c2a336] transition-colors leading-tight max-w-xs">
-                {row.indicatorTitle}
-              </div>
-            </td>
-            <td className="px-6 py-5">
-              <span className="text-slate-500 text-[10px] font-black uppercase tracking-tighter">{row.unitOfMeasure}</span>
-            </td>
-            <td className="px-6 py-5">
-              <span className={`px-2.5 py-1 text-[9px] font-black rounded-full border uppercase tracking-widest ${getStatusStyles(row.status)}`}>
-                {row.status}
-              </span>
-            </td>
-            <td className="px-6 py-5">
-              <div className="flex items-center gap-2 text-[#1a3a32] font-bold text-xs">
-                {row.assignedToType === "individual" ? (
-                  <><User className="w-3.5 h-3.5 text-[#c2a336]" /> {getUserName(row.assignedTo)}</>
-                ) : (
-                  <><Users className="w-3.5 h-3.5 text-[#c2a336]" /> Registry Group</>
-                )}
-              </div>
-            </td>
-            <td className="px-6 py-5">
-              <div className="flex items-center gap-2 text-xs font-bold text-slate-600 tabular-nums">
-                <Clock className="w-3.5 h-3.5 text-slate-300" />
-                {row.dueDate ? new Date(row.dueDate).toLocaleDateString() : 'N/A'}
-              </div>
-            </td>
-          </tr>
-        ))}
+        {rows.map((row) => {
+          const status = getEffectiveStatus(row);
+          return (
+            <tr key={row._id} className="group hover:bg-[#1a3a32]/[0.02] transition-colors cursor-pointer">
+              <td className="px-6 py-5">
+                <span className="text-[10px] font-bold text-slate-500 uppercase tracking-tight">
+                  {row.level2Category?.title || "—"}
+                </span>
+              </td>
+              <td className="px-6 py-5">
+                <div className="font-bold text-[#1a3a32] group-hover:text-[#c2a336] transition-colors leading-tight max-w-xs">
+                  {row.indicatorTitle}
+                </div>
+              </td>
+              <td className="px-6 py-5">
+                <span className="text-slate-500 text-[10px] font-black uppercase tracking-tighter">{row.unitOfMeasure}</span>
+              </td>
+              <td className="px-6 py-5">
+                <span className={`px-2.5 py-1 text-[9px] font-black rounded-full border uppercase tracking-widest ${getStatusStyles(status)}`}>
+                  {status}
+                </span>
+              </td>
+              <td className="px-6 py-5">
+                <div className="flex items-center gap-2 text-[#1a3a32] font-bold text-xs">
+                  {row.assignedToType === "individual" ? (
+                    <><User className="w-3.5 h-3.5 text-[#c2a336]" /> {getUserName(row.assignedTo)}</>
+                  ) : (
+                    <><Users className="w-3.5 h-3.5 text-[#c2a336]" /> Registry Group</>
+                  )}
+                </div>
+              </td>
+              <td className="px-6 py-5">
+                <div className="flex items-center gap-2 text-xs font-bold text-slate-600 tabular-nums">
+                  <Clock className="w-3.5 h-3.5 text-slate-300" />
+                  {row.dueDate ? new Date(row.dueDate).toLocaleDateString() : 'N/A'}
+                </div>
+              </td>
+            </tr>
+          )
+        })}
       </tbody>
     </table>
   </div>

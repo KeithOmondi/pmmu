@@ -19,6 +19,7 @@ import {
   X,
   ShieldCheck,
   FileSearch,
+  Award,
 } from "lucide-react";
 import toast from "react-hot-toast";
 
@@ -41,14 +42,14 @@ const UserReport: React.FC = () => {
       link.href = url;
       link.setAttribute(
         "download",
-        `Judiciary_Report_${selectedType}_${Date.now()}.pdf`
+        `Certified_Performance_Record_${Date.now()}.pdf`
       );
       document.body.appendChild(link);
       link.click();
       link.parentNode?.removeChild(link);
-      toast.success("Official PDF Generated Successfully");
+      toast.success("Official PDF Mandate Exported");
     } catch (err) {
-      toast.error("Failed to generate PDF mandate.");
+      toast.error("Failed to generate official document.");
     }
   };
 
@@ -58,7 +59,7 @@ const UserReport: React.FC = () => {
       await dispatch(fetchReportHtml({ type: selectedType })).unwrap();
       setIsPreviewOpen(true);
     } catch (err) {
-      toast.error("Unable to generate preview.");
+      toast.error("Registry preview unavailable.");
     }
   };
 
@@ -66,139 +67,143 @@ const UserReport: React.FC = () => {
     {
       id: "general",
       title: "Comprehensive Portfolio",
-      desc: "Complete overview of all assigned indicators and metrics.",
+      desc: "An exhaustive record of all assigned indicators and lifetime progress.",
       icon: <Layers size={20} />,
     },
     {
       id: "monthly",
       title: "Monthly Performance",
-      desc: "Detailed breakdown of progress for the current calendar month.",
+      desc: "Consolidated breakdown of milestones achieved this calendar month.",
       icon: <Calendar size={20} />,
     },
     {
       id: "quarterly",
       title: "Quarterly Audit",
-      desc: "Executive summary for the current financial quarter.",
+      desc: "Executive summary intended for official financial quarter review.",
       icon: <Clock size={20} />,
     },
     {
       id: "weekly",
       title: "Weekly Snapshot",
-      desc: "Fast-track report on immediate upcoming deadlines.",
+      desc: "Immediate focus report covering the last 7 days of activity.",
       icon: <FileSearch size={20} />,
     },
   ];
 
   return (
-    <div className="min-h-screen bg-[#f8f9fa] p-6 lg:p-10">
-      <div className="max-w-5xl mx-auto space-y-10">
-        {/* Header Section */}
-        <div className="flex flex-col md:flex-row md:items-end justify-between gap-6">
-          <div className="space-y-2">
-            <div className="flex items-center gap-2 text-[#c2a336] font-black uppercase tracking-[0.3em] text-[10px]">
-              <ShieldCheck size={14} /> Intelligence & Reporting
+    <div className="min-h-screen bg-[#f8fafc] p-6 lg:p-12 animate-in fade-in duration-700">
+      <div className="max-w-6xl mx-auto space-y-12">
+        
+        {/* Executive Header */}
+        <div className="bg-[#1a3a32] p-10 rounded-[2.5rem] shadow-2xl relative overflow-hidden text-white">
+          <div className="absolute top-0 right-0 p-8 opacity-10 pointer-events-none">
+            <Award size={180} />
+          </div>
+          <div className="relative z-10">
+            <div className="flex items-center gap-2 text-[#c2a336] mb-3 font-bold uppercase tracking-[0.3em] text-[10px]">
+              <ShieldCheck size={14} className="animate-pulse" /> Verified User Registry
             </div>
-            <h1 className="text-4xl font-black text-[#1a3a32] tracking-tighter">
-              Performance <span className="text-slate-300">Archive</span>
+            <h1 className="text-4xl font-black tracking-tighter">
+              Performance <span className="text-[#c2a336]">Archive.</span>
             </h1>
-            <p className="text-slate-400 text-xs font-bold uppercase tracking-widest max-w-md">
-              Generate and export certified performance records for official
-              review.
+            <p className="text-white/60 text-sm font-medium mt-2 max-w-xl leading-relaxed">
+              Generate, preview, and export your certified performance mandates. These documents are formatted for official judicial review and departmental audits.
             </p>
           </div>
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-10">
-          {/* Left Column: Selection */}
-          <div className="lg:col-span-2 space-y-4">
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-10">
+          {/* Selection List */}
+          <div className="lg:col-span-7 space-y-4">
+            <h2 className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400 mb-6 flex items-center gap-2">
+              <ChevronRight size={14} className="text-[#c2a336]" /> Select Document Template
+            </h2>
             {reportOptions.map((opt) => (
               <button
                 key={opt.id}
                 onClick={() => setSelectedType(opt.id as ReportType)}
                 className={`w-full text-left p-6 rounded-[2rem] border-2 transition-all flex items-center justify-between group ${
                   selectedType === opt.id
-                    ? "bg-white border-[#c2a336] shadow-xl shadow-[#c2a336]/5"
+                    ? "bg-white border-[#c2a336] shadow-xl shadow-[#c2a336]/10 scale-[1.02]"
                     : "bg-white border-transparent hover:border-slate-200 shadow-sm"
                 }`}
               >
-                <div className="flex items-center gap-5">
+                <div className="flex items-center gap-6">
                   <div
-                    className={`p-4 rounded-2xl transition-colors ${
+                    className={`p-4 rounded-2xl transition-all duration-500 ${
                       selectedType === opt.id
-                        ? "bg-[#1a3a32] text-white"
-                        : "bg-slate-50 text-slate-400 group-hover:text-[#c2a336]"
+                        ? "bg-[#1a3a32] text-[#c2a336] rotate-[360deg]"
+                        : "bg-slate-50 text-slate-400 group-hover:text-[#1a3a32]"
                     }`}
                   >
                     {opt.icon}
                   </div>
                   <div>
-                    <h3 className="font-black text-[#1a3a32] uppercase tracking-tight text-sm mb-1">
+                    <h3 className={`font-black uppercase tracking-tight text-sm mb-1 ${
+                      selectedType === opt.id ? "text-[#1a3a32]" : "text-slate-600"
+                    }`}>
                       {opt.title}
                     </h3>
-                    <p className="text-[11px] text-slate-400 font-medium">
+                    <p className="text-[11px] text-slate-400 font-semibold leading-relaxed max-w-xs">
                       {opt.desc}
                     </p>
                   </div>
                 </div>
-                <ChevronRight
-                  className={`transition-transform ${
-                    selectedType === opt.id
-                      ? "translate-x-1 text-[#c2a336]"
-                      : "text-slate-200"
-                  }`}
-                />
+                <div className={`w-8 h-8 rounded-full flex items-center justify-center transition-all ${
+                   selectedType === opt.id ? "bg-[#c2a336] text-[#1a3a32]" : "bg-slate-50 text-slate-200"
+                }`}>
+                  <ChevronRight size={16} strokeWidth={3} />
+                </div>
               </button>
             ))}
           </div>
 
-          {/* Right Column: Action Card */}
-          <div className="lg:col-span-1">
-            <div className="bg-[#1a3a32] rounded-[2.5rem] p-8 text-white shadow-2xl shadow-[#1a3a32]/20 sticky top-10">
-              <div className="mb-8">
-                <h3 className="text-[10px] font-black uppercase tracking-[0.3em] text-[#c2a336] mb-2">
-                  Export Mandate
+          {/* Action Sidebar */}
+          <div className="lg:col-span-5">
+            <div className="bg-white rounded-[2.5rem] border border-slate-100 p-8 shadow-sm sticky top-10">
+              <div className="mb-8 p-6 bg-slate-50 rounded-3xl border border-slate-100">
+                <h3 className="text-[10px] font-black uppercase tracking-[0.3em] text-[#1a3a32] mb-3">
+                  Export Configuration
                 </h3>
-                <p className="text-xs text-slate-300 font-medium leading-relaxed">
-                  You are generating a{" "}
-                  <span className="text-white font-bold">
-                    {selectedType.toUpperCase()}
-                  </span>{" "}
-                  report. This document will include all verified exhibits.
-                </p>
+                <div className="space-y-3">
+                  <div className="flex justify-between items-center">
+                    <span className="text-[11px] font-bold text-slate-400 uppercase">Selected Scope:</span>
+                    <span className="text-[11px] font-black text-[#c2a336] uppercase">{selectedType}</span>
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <span className="text-[11px] font-bold text-slate-400 uppercase">Format:</span>
+                    <span className="text-[11px] font-black text-[#1a3a32] uppercase">ISO PDF-A</span>
+                  </div>
+                </div>
               </div>
 
-              <div className="space-y-3">
+              <div className="space-y-4">
                 <button
                   disabled={loading}
                   onClick={handlePreview}
-                  className="w-full flex items-center justify-center gap-3 bg-white/10 hover:bg-white/20 text-white py-5 rounded-2xl font-black text-[10px] uppercase tracking-widest transition-all border border-white/10"
+                  className="w-full flex items-center justify-center gap-3 bg-slate-100 hover:bg-slate-200 text-[#1a3a32] py-5 rounded-2xl font-black text-[10px] uppercase tracking-widest transition-all"
                 >
-                  {loading ? (
-                    <Loader2 className="animate-spin" size={16} />
-                  ) : (
-                    <Eye size={18} />
-                  )}
-                  Inspect Preview
+                  {loading ? <Loader2 className="animate-spin" size={16} /> : <Eye size={18} />}
+                  Inspect Registry
                 </button>
 
                 <button
                   disabled={loading}
                   onClick={handleDownload}
-                  className="w-full flex items-center justify-center gap-3 bg-[#c2a336] hover:bg-[#d4b44a] text-[#1a3a32] py-5 rounded-2xl font-black text-[10px] uppercase tracking-widest transition-all shadow-lg active:scale-95"
+                  className="w-full flex items-center justify-center gap-3 bg-[#c2a336] hover:bg-[#d4b54a] text-[#1a3a32] py-5 rounded-2xl font-black text-[10px] uppercase tracking-widest transition-all shadow-xl shadow-[#c2a336]/20 active:scale-95"
                 >
-                  {loading ? (
-                    <Loader2 className="animate-spin" size={16} />
-                  ) : (
-                    <Download size={18} />
-                  )}
-                  Download PDF
+                  {loading ? <Loader2 className="animate-spin" size={16} /> : <Download size={18} />}
+                  Generate Official PDF
                 </button>
               </div>
 
-              <div className="mt-8 pt-8 border-t border-white/5 text-center">
-                <p className="text-[9px] font-black text-white/30 uppercase tracking-[0.2em]">
-                  Document generated by judicial AI registry
-                </p>
+              <div className="mt-10 pt-8 border-t border-slate-50">
+                <div className="flex items-center gap-3 px-4 py-3 bg-blue-50/50 rounded-xl">
+                  <ShieldCheck size={16} className="text-blue-600" />
+                  <p className="text-[9px] font-bold text-blue-700 uppercase tracking-tighter">
+                    Document will be timestamped with your unique ID for audit traceability.
+                  </p>
+                </div>
               </div>
             </div>
           </div>
@@ -209,32 +214,32 @@ const UserReport: React.FC = () => {
       {isPreviewOpen && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 lg:p-12">
           <div
-            className="absolute inset-0 bg-[#1a3a32]/90 backdrop-blur-md"
+            className="absolute inset-0 bg-[#1a3a32]/95 backdrop-blur-xl"
             onClick={() => setIsPreviewOpen(false)}
           />
 
-          <div className="relative bg-white w-full max-w-5xl h-full rounded-[3rem] shadow-2xl overflow-hidden flex flex-col animate-in zoom-in-95 duration-300">
+          <div className="relative bg-white w-full max-w-6xl h-full rounded-[3rem] shadow-2xl overflow-hidden flex flex-col animate-in zoom-in-95 duration-300">
             {/* Modal Header */}
-            <div className="p-8 border-b border-slate-50 flex justify-between items-center">
+            <div className="p-8 border-b border-slate-100 flex justify-between items-center bg-white">
               <div className="flex items-center gap-4">
                 <div className="p-3 bg-slate-50 rounded-2xl text-[#c2a336]">
                   <FileText size={24} />
                 </div>
                 <div>
                   <h3 className="font-black text-[#1a3a32] text-xl tracking-tighter uppercase">
-                    Document Preview
+                    Audit Mandate Preview
                   </h3>
                   <p className="text-[10px] text-slate-400 font-black uppercase tracking-widest">
-                    Type: {selectedType} Report
+                    Internal Official Use Only • {selectedType} Report
                   </p>
                 </div>
               </div>
               <div className="flex items-center gap-4">
                 <button
                   onClick={handleDownload}
-                  className="flex items-center gap-2 px-6 py-3 bg-[#1a3a32] text-white rounded-xl font-black text-[10px] uppercase tracking-widest hover:bg-[#2a5a4d] transition-colors"
+                  className="flex items-center gap-2 px-6 py-3 bg-[#1a3a32] text-white rounded-xl font-black text-[10px] uppercase tracking-widest hover:bg-[#2a5a4d] transition-colors shadow-lg"
                 >
-                  <Download size={14} /> Download
+                  <Download size={14} /> Export Mandate
                 </button>
                 <button
                   onClick={() => setIsPreviewOpen(false)}
@@ -245,19 +250,19 @@ const UserReport: React.FC = () => {
               </div>
             </div>
 
-            {/* Modal Content - HTML RENDERER */}
-            <div className="flex-1 overflow-y-auto bg-slate-50/50 p-10 custom-scrollbar">
-              <div className="bg-white mx-auto max-w-4xl min-h-full shadow-sm rounded-xl p-12">
+            {/* Modal Content */}
+            <div className="flex-1 overflow-y-auto bg-slate-50 p-6 lg:p-12">
+              <div className="bg-white mx-auto max-w-5xl min-h-full shadow-2xl rounded-2xl p-12 border border-slate-100">
                 {previewHtml ? (
                   <div
-                    className="report-preview-container prose prose-sm max-w-none"
+                    className="report-preview-container prose prose-slate max-w-none"
                     dangerouslySetInnerHTML={{ __html: previewHtml }}
                   />
                 ) : (
-                  <div className="flex flex-col items-center justify-center py-20">
-                    <Loader2 className="w-10 h-10 animate-spin text-[#c2a336] mb-4" />
-                    <p className="text-xs font-black text-slate-400 uppercase tracking-widest">
-                      Compiling Records...
+                  <div className="flex flex-col items-center justify-center py-32 text-center">
+                    <Loader2 className="w-12 h-12 animate-spin text-[#c2a336] mb-4" />
+                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.3em]">
+                      Accessing Secure Records...
                     </p>
                   </div>
                 )}

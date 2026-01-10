@@ -1,3 +1,4 @@
+// src/pages/SuperAdmin/SuperAdminApprovedModal.tsx
 import React, { useEffect, useMemo, useState } from "react";
 import { useAppDispatch, useAppSelector } from "../../store/hooks";
 import {
@@ -33,32 +34,42 @@ const SuperAdminApprovedModal: React.FC<Props> = ({ isOpen, onClose }) => {
   const [processingId, setProcessingId] = useState<string | null>(null);
 
   useEffect(() => {
-    if (isOpen) {
-      dispatch(fetchAllIndicatorsForAdmin());
-    }
+    if (isOpen) dispatch(fetchAllIndicatorsForAdmin());
   }, [dispatch, isOpen]);
 
+  // Only show indicators that are approved or already completed
   const pendingRatification = useMemo(
-    () => indicators.filter((i) => i.status === "approved"),
+    () =>
+      indicators.filter(
+        (i) => i.status === "approved" || i.status === "completed"
+      ),
     [indicators]
   );
+
+  const isCompleted = (indicator: IIndicator) =>
+    indicator.status === "completed";
 
   const handleReview = async (indicator: IIndicator, approve: boolean) => {
     try {
       setProcessingId(indicator._id);
-      // If approved by SuperAdmin, we might set status to "completed" or "verified"
-      // Adjust the status string based on your backend workflow
-      await dispatch(
-        updateIndicator({
-          id: indicator._id,
-          updates: { status: approve ? "overdue" : "pending" } as any,
-        })
-      ).unwrap();
 
-      toast.success(
-        approve ? "Protocol Ratified & Locked" : "Returned to Department Review"
-      );
-    } catch (err) {
+      if (!isCompleted(indicator)) {
+        await dispatch(
+          updateIndicator({
+            id: indicator._id,
+            updates: { status: approve ? "completed" : "approved" },
+          })
+        ).unwrap();
+
+        toast.success(
+          approve
+            ? "Protocol Ratified & Locked"
+            : "Returned to Department Review"
+        );
+
+        dispatch(fetchAllIndicatorsForAdmin());
+      }
+    } catch {
       toast.error("Registry Sync Failure");
     } finally {
       setProcessingId(null);
@@ -77,7 +88,7 @@ const SuperAdminApprovedModal: React.FC<Props> = ({ isOpen, onClose }) => {
 
       {/* Modal Container */}
       <div className="relative bg-white w-full max-w-6xl h-full max-h-[90vh] rounded-[2rem] shadow-2xl flex flex-col overflow-hidden animate-in zoom-in-95 duration-300">
-        {/* Header - Fixed */}
+        {/* Header */}
         <header className="shrink-0 px-8 py-6 border-b border-slate-100 bg-white flex items-center justify-between">
           <div className="flex items-center gap-4">
             <div className="w-12 h-12 bg-[#1a3a32] rounded-2xl flex items-center justify-center text-[#c2a336] shadow-lg shadow-[#1a3a32]/20">
@@ -112,7 +123,7 @@ const SuperAdminApprovedModal: React.FC<Props> = ({ isOpen, onClose }) => {
           </div>
         </header>
 
-        {/* Content - Scrollable */}
+        {/* Content */}
         <div className="flex-1 overflow-y-auto bg-slate-50/50 p-6 lg:p-10 custom-scrollbar">
           {loading ? (
             <div className="flex flex-col items-center justify-center h-64">
@@ -138,16 +149,28 @@ const SuperAdminApprovedModal: React.FC<Props> = ({ isOpen, onClose }) => {
               {pendingRatification.map((indicator) => (
                 <div
                   key={indicator._id}
-                  className="bg-white rounded-3xl p-6 border border-slate-100 shadow-sm hover:shadow-md transition-shadow group relative overflow-hidden"
+                  className={`bg-white rounded-3xl p-6 border border-slate-100 shadow-sm hover:shadow-md transition-shadow group relative overflow-hidden`}
                 >
-                  <div className="flex flex-col lg:flex-row lg:items-center gap-6">
-                    {/* Status indicator line */}
+                  {/* Completed Badge */}
+                  {isCompleted(indicator) && (
+                    <span className="absolute top-3 right-3 bg-emerald-500 text-white text-[9px] font-black px-2 py-1 rounded-full uppercase tracking-widest">
+                      Completed
+                    </span>
+                  )}
+
+                  <div className="flex flex-col lg:flex-row lg:items-center gap-6 relative">
                     <div className="absolute left-0 top-0 bottom-0 w-1.5 bg-[#c2a336]/20 group-hover:bg-[#c2a336] transition-colors" />
 
                     {/* Main Info */}
                     <div className="flex-1">
                       <div className="flex items-center gap-2 mb-2">
-                        <span className="px-2 py-0.5 bg-emerald-50 text-emerald-700 text-[9px] font-black rounded uppercase tracking-tighter">
+                        <span
+                          className="px-2 py-0.5 text-[9px] font-black rounded uppercase tracking-tighter"
+                          style={{
+                            backgroundColor: "#16a34a15",
+                            color: "#16a34a",
+                          }}
+                        >
                           Dept Approved
                         </span>
                         <span className="text-slate-300">•</span>
@@ -155,9 +178,43 @@ const SuperAdminApprovedModal: React.FC<Props> = ({ isOpen, onClose }) => {
                           {indicator.unitOfMeasure}
                         </span>
                       </div>
-                      <h4 className="text-lg font-black text-[#1a3a32] leading-tight mb-3">
+
+                      <h4 className="text-lg font-black text-[#1a3a32] leading-tight mb-2">
                         {indicator.indicatorTitle}
                       </h4>
+
+                      {/* Audit Info */}
+                      <div className="flex flex-wrap gap-4 mb-3 text-[11px] text-slate-500 font-bold">
+                        <div className="flex items-center gap-1">
+                          <Calendar size={14} className="text-slate-400" />
+                          Submitted:{" "}
+                          {new Date(indicator.createdAt).toLocaleDateString(
+                            "en-GB"
+                          )}
+                        </div>
+
+                        {indicator.reviewedAt && (
+                          <div className="flex items-center gap-1 text-emerald-600">
+                            <Calendar size={14} />
+                            Approved:{" "}
+                            <span className="font-black">
+                              {new Date(indicator.reviewedAt).toLocaleString(
+                                "en-GB",
+                                {
+                                  day: "2-digit",
+                                  month: "short",
+                                  year: "numeric",
+                                  hour: "2-digit",
+                                  minute: "2-digit",
+                                }
+                              )}
+                            </span>
+                            {indicator.reviewedBy &&
+                              ` by ${indicator.reviewedBy.name || "Unknown"}`}
+                          </div>
+                        )}
+                      </div>
+
                       <div className="flex flex-wrap gap-4">
                         <div className="flex items-center gap-2 text-[11px] font-bold text-slate-500">
                           <Users size={14} className="text-[#c2a336]" />
@@ -168,12 +225,14 @@ const SuperAdminApprovedModal: React.FC<Props> = ({ isOpen, onClose }) => {
                         <div className="flex items-center gap-2 text-[11px] font-bold text-slate-500">
                           <Calendar size={14} className="text-slate-400" />
                           Due:{" "}
-                          {new Date(indicator.dueDate).toLocaleDateString()}
+                          {new Date(indicator.dueDate).toLocaleDateString(
+                            "en-GB"
+                          )}
                         </div>
                       </div>
                     </div>
 
-                    {/* Meta Architecture */}
+                    {/* Meta */}
                     <div className="hidden xl:block w-64 border-l border-slate-50 px-6">
                       <p className="text-[9px] font-black text-slate-300 uppercase mb-1">
                         Architecture
@@ -186,7 +245,7 @@ const SuperAdminApprovedModal: React.FC<Props> = ({ isOpen, onClose }) => {
                       </p>
                     </div>
 
-                    {/* Action Buttons */}
+                    {/* Actions */}
                     <div className="flex items-center gap-2 shrink-0">
                       <button
                         onClick={() =>
@@ -199,16 +258,24 @@ const SuperAdminApprovedModal: React.FC<Props> = ({ isOpen, onClose }) => {
                       </button>
                       <div className="h-8 w-[1px] bg-slate-100 mx-2 hidden lg:block" />
                       <button
-                        disabled={!!processingId}
+                        disabled={!!processingId || isCompleted(indicator)}
                         onClick={() => handleReview(indicator, false)}
-                        className="px-5 py-3 rounded-2xl text-[11px] font-black uppercase text-rose-600 bg-rose-50 hover:bg-rose-600 hover:text-white transition-all border border-rose-100 flex items-center gap-2"
+                        className={`px-5 py-3 rounded-2xl text-[11px] font-black uppercase text-rose-600 bg-rose-50 hover:bg-rose-600 hover:text-white transition-all border border-rose-100 flex items-center gap-2 ${
+                          isCompleted(indicator)
+                            ? "opacity-50 cursor-not-allowed hover:bg-rose-50 hover:text-rose-600"
+                            : ""
+                        }`}
                       >
                         <XCircle size={16} /> Reject
                       </button>
                       <button
-                        disabled={!!processingId}
+                        disabled={!!processingId || isCompleted(indicator)}
                         onClick={() => handleReview(indicator, true)}
-                        className="px-6 py-3 rounded-2xl text-[11px] font-black uppercase text-white bg-[#1a3a32] hover:bg-[#c2a336] shadow-lg shadow-[#1a3a32]/20 transition-all flex items-center gap-2 group/btn"
+                        className={`px-6 py-3 rounded-2xl text-[11px] font-black uppercase text-white bg-[#1a3a32] hover:bg-[#c2a336] shadow-lg shadow-[#1a3a32]/20 transition-all flex items-center gap-2 ${
+                          isCompleted(indicator)
+                            ? "opacity-50 cursor-not-allowed hover:bg-[#1a3a32]"
+                            : ""
+                        }`}
                       >
                         {processingId === indicator._id ? (
                           <Loader2 size={16} className="animate-spin" />
@@ -229,10 +296,10 @@ const SuperAdminApprovedModal: React.FC<Props> = ({ isOpen, onClose }) => {
           )}
         </div>
 
-        {/* Footer - Fixed */}
+        {/* Footer */}
         <footer className="shrink-0 px-8 py-4 bg-white border-t border-slate-100 flex justify-between items-center">
           <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest italic">
-            Secure SuperAdmin Session • {new Date().toLocaleDateString()}
+            Secure SuperAdmin Session • {new Date().toLocaleDateString("en-GB")}
           </p>
           <div className="flex items-center gap-4 text-[10px] font-black text-slate-500 uppercase">
             <div className="flex items-center gap-1.5">

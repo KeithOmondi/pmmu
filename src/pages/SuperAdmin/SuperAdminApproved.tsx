@@ -1,3 +1,4 @@
+// src/pages/SuperAdminApproved.tsx
 import React, { useEffect, useMemo, useState } from "react";
 import { useAppDispatch, useAppSelector } from "../../store/hooks";
 import {
@@ -29,45 +30,38 @@ const SuperAdminApproved: React.FC = () => {
   const dispatch = useAppDispatch();
   const indicators = useAppSelector(selectAllIndicators);
   const loading = useAppSelector(selectIndicatorsLoading);
-
-  // Cast to IUser[] to resolve the 'unknown' type error
   const allUsers = useAppSelector(selectAllUsers) as IUser[];
 
   const [processingId, setProcessingId] = useState<string | null>(null);
-  const [selectedIndicator, setSelectedIndicator] = useState<IIndicator | null>(
-    null
-  );
+  const [selectedIndicator, setSelectedIndicator] = useState<IIndicator | null>(null);
 
   useEffect(() => {
     dispatch(fetchAllIndicatorsForAdmin());
     dispatch(fetchUsers());
   }, [dispatch]);
 
-  const pendingReviewIndicators = useMemo(
-    () => indicators.filter((i) => i.status === "approved"),
+  // Filter indicators that are approved or completed
+  const reviewIndicators = useMemo(
+    () =>
+      indicators.filter((i) => i.status === "approved" || i.status === "completed"),
     [indicators]
   );
 
-  /**
-   * RESOLVE USER NAME
-   * Logic: Checks department type, checks if populated, then looks up ID in Redux users
-   */
+  const isCompleted = (indicator: IIndicator) => indicator.status === "completed";
+
   const getAssignedName = (indicator: any) => {
     if (indicator.assignedToType === "department") return "Department Group";
 
     const assignedData = indicator.assignedTo;
     if (!assignedData) return "Unassigned";
 
-    // Scenario A: Backend already populated the user object
     if (typeof assignedData === "object" && assignedData !== null) {
       return assignedData.name || "Unknown User";
     }
 
-    // Scenario B: We have an ID string, find the name in our Redux users list
     const foundUser = allUsers.find((u) => u._id === assignedData);
     if (foundUser) return foundUser.name;
 
-    // Scenario C: ID present but name not yet in registry
     return typeof assignedData === "string"
       ? `ID: ${assignedData.substring(0, 5)}...`
       : "Unknown";
@@ -76,21 +70,27 @@ const SuperAdminApproved: React.FC = () => {
   const handleReview = async (indicator: IIndicator, approve: boolean) => {
     try {
       setProcessingId(indicator._id);
-      await dispatch(
-        updateIndicator({
-          id: indicator._id,
-          updates: { status: approve ? "overdue" : "pending" } as any,
-        })
-      ).unwrap();
 
-      toast.success(
-        `Indicator ${approve ? "Ratified" : "Returned to Department"}`
-      );
+      if (!isCompleted(indicator)) {
+        await dispatch(
+          updateIndicator({
+            id: indicator._id,
+            updates: { status: approve ? "completed" : "approved" },
+          })
+        ).unwrap();
 
-      if (selectedIndicator?._id === indicator._id) {
-        setSelectedIndicator(null);
+        toast.success(
+          approve
+            ? "Protocol Ratified & Locked"
+            : "Returned to Department Review"
+        );
+
+        // Keep it visible, just update local state
+        setSelectedIndicator((prev) =>
+          prev?._id === indicator._id ? { ...indicator, status: approve ? "completed" : "approved" } : prev
+        );
       }
-    } catch (err) {
+    } catch {
       toast.error("Registry Update Failed");
     } finally {
       setProcessingId(null);
@@ -110,7 +110,7 @@ const SuperAdminApproved: React.FC = () => {
 
   return (
     <div className="min-h-screen p-4 sm:p-6 lg:p-10 bg-[#f8f9fa] relative">
-      {/* Header Section */}
+      {/* Header */}
       <div className="mb-6 lg:mb-10 flex flex-col md:flex-row md:items-end justify-between gap-6">
         <div>
           <div className="flex items-center gap-2 text-[#c2a336] mb-2 font-black uppercase tracking-[0.2em] text-[10px]">
@@ -127,15 +127,15 @@ const SuperAdminApproved: React.FC = () => {
               Queue Length
             </p>
             <p className="text-xl font-black text-[#1a3a32]">
-              {pendingReviewIndicators.length}
+              {reviewIndicators.length}
             </p>
           </div>
           <ShieldCheck className="text-[#c2a336]" size={28} />
         </div>
       </div>
 
-      {/* Main List View */}
-      {!pendingReviewIndicators.length ? (
+      {/* Main List */}
+      {!reviewIndicators.length ? (
         <div className="bg-white rounded-[2rem] border border-gray-100 p-20 text-center shadow-sm">
           <CheckCircle2 className="mx-auto text-emerald-100 mb-4" size={48} />
           <p className="text-[#1a3a32] font-black italic">
@@ -144,10 +144,12 @@ const SuperAdminApproved: React.FC = () => {
         </div>
       ) : (
         <div className="grid grid-cols-1 gap-4">
-          {pendingReviewIndicators.map((i) => (
+          {reviewIndicators.map((i) => (
             <div
               key={i._id}
-              className="bg-white rounded-2xl p-5 border border-gray-100 shadow-sm flex flex-col md:flex-row items-center justify-between gap-4 group transition-all hover:border-[#c2a336]/30"
+              className={`bg-white rounded-2xl p-5 border border-gray-100 shadow-sm flex flex-col md:flex-row items-center justify-between gap-4 group transition-all hover:border-[#c2a336]/30 ${
+                isCompleted(i) ? "opacity-70" : ""
+              }`}
             >
               <div className="flex items-center gap-4 flex-1">
                 <div className="w-12 h-12 rounded-xl bg-slate-50 flex items-center justify-center text-[#1a3a32] shrink-0">
@@ -163,16 +165,27 @@ const SuperAdminApproved: React.FC = () => {
                 </div>
               </div>
 
-              <div className="flex items-center gap-2">
+              {/* Status & Actions */}
+              <div className="flex items-center gap-3">
+                <span
+                  className={`px-2 py-1 rounded-full text-[10px] font-black uppercase ${
+                    i.status === "completed"
+                      ? "bg-emerald-100 text-emerald-800"
+                      : "bg-blue-100 text-blue-800"
+                  }`}
+                >
+                  {i.status === "completed" ? "Completed" : "Approved"}
+                </span>
+
                 <button
                   onClick={() => setSelectedIndicator(i)}
                   className="p-3 text-gray-400 hover:text-[#1a3a32] hover:bg-gray-100 rounded-xl transition-all"
                 >
                   <Eye size={20} />
                 </button>
-                <div className="h-8 w-[1px] bg-gray-100 mx-2" />
+
                 <button
-                  disabled={!!processingId}
+                  disabled={!!processingId || isCompleted(i)}
                   onClick={() => handleReview(i, true)}
                   className="px-6 py-2.5 bg-[#1a3a32] text-white text-[11px] font-black uppercase rounded-xl hover:bg-[#c2a336] transition-all disabled:opacity-50"
                 >
@@ -184,7 +197,6 @@ const SuperAdminApproved: React.FC = () => {
         </div>
       )}
 
-      {/* Audit Modal */}
       {selectedIndicator && (
         <AuditModal
           indicator={selectedIndicator}
@@ -212,7 +224,7 @@ const AuditModal = ({
       onClick={onClose}
     />
     <div className="relative bg-white w-full max-w-2xl rounded-[2.5rem] overflow-hidden shadow-2xl animate-in zoom-in-95 duration-200">
-      {/* Modal Header */}
+      {/* Header */}
       <div className="bg-[#1a3a32] p-8 text-white flex justify-between items-start">
         <div>
           <div className="flex items-center gap-2 text-[#c2a336] mb-1 font-black uppercase tracking-widest text-[10px]">
@@ -230,7 +242,7 @@ const AuditModal = ({
         </button>
       </div>
 
-      {/* Modal Body */}
+      {/* Body */}
       <div className="p-8 space-y-6 max-h-[60vh] overflow-y-auto custom-scrollbar">
         <div className="grid grid-cols-2 gap-6">
           <div className="space-y-1">
@@ -255,7 +267,6 @@ const AuditModal = ({
           </div>
         </div>
 
-        {/* Timeline & Progress Row */}
         <div className="p-5 bg-slate-50 rounded-2xl border border-slate-100 flex items-center justify-between">
           <div className="flex items-center gap-3">
             <Clock className="text-[#c2a336]" size={20} />
@@ -278,7 +289,6 @@ const AuditModal = ({
           </div>
         </div>
 
-        {/* Evidence Registry */}
         <div className="space-y-3">
           <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest">
             Evidence Registry
@@ -318,7 +328,7 @@ const AuditModal = ({
         </div>
       </div>
 
-      {/* Modal Footer */}
+      {/* Footer */}
       <div className="p-8 bg-gray-50 border-t border-gray-100 grid grid-cols-2 gap-4">
         <button
           disabled={!!processingId}
