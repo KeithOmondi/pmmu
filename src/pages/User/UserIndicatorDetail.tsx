@@ -111,9 +111,14 @@ const UserIndicatorDetail: React.FC = () => {
 
   const dueTime = new Date(indicator.dueDate).getTime();
   const isOverdue = now > dueTime;
-  const canSubmit =
-    now >= new Date(indicator.startDate).getTime() &&
-    !["approved", "completed"].includes(indicator.status);
+
+  /**
+   * RESTRICTION REMOVED: 
+   * Removed "now >= new Date(indicator.startDate).getTime()"
+   * Users can now submit even if the start date hasn't arrived.
+   */
+  const canSubmit = !["approved", "completed"].includes(indicator.status);
+
   const rejectionNote =
     indicator.status === "rejected"
       ? indicator.notes?.[indicator.notes.length - 1]
@@ -181,7 +186,6 @@ const UserIndicatorDetail: React.FC = () => {
 
       {/* Main Content Grid */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-10">
-        {/* Left Column: Stats & Existing Evidence */}
         <div className="lg:col-span-8 space-y-8">
           <div className="grid grid-cols-2 md:grid-cols-4 gap-6 bg-white p-8 rounded-2xl border border-gray-100 shadow-sm">
             <Stat
@@ -240,7 +244,6 @@ const UserIndicatorDetail: React.FC = () => {
           </div>
         </div>
 
-        {/* Right Column: Upload Section */}
         <aside className="lg:col-span-4">
           {canSubmit ? (
             <div className="bg-white rounded-2xl border border-gray-100 p-6 shadow-xl sticky top-6">
@@ -266,7 +269,6 @@ const UserIndicatorDetail: React.FC = () => {
                 />
               </label>
 
-              {/* Selected Files Preview */}
               {selectedFiles.length > 0 && (
                 <div className="mt-8 space-y-4">
                   {selectedFiles.map((file, idx) => (
@@ -310,6 +312,9 @@ const UserIndicatorDetail: React.FC = () => {
               <ShieldCheck className="mx-auto text-gray-300 mb-4" size={32} />
               <p className="text-xs font-bold text-gray-400 uppercase">
                 Submissions Locked
+              </p>
+              <p className="text-[10px] text-gray-400 mt-2 italic">
+                This indicator is already {indicator.status}.
               </p>
             </div>
           )}
