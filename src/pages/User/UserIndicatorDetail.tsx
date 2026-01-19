@@ -1,4 +1,3 @@
-// src/pages/User/UserIndicatorDetail.tsx
 import React, { useMemo, useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { useAppDispatch, useAppSelector } from "../../store/hooks";
@@ -15,19 +14,16 @@ import { getSocket } from "../../utils/socket";
 import {
   ArrowLeft,
   Upload,
-  Clock,
   AlertCircle,
   FileCheck,
   Download,
-  Calendar,
   ShieldCheck,
+  Clock,
+  Plus,
+  X,
+  FileText,
 } from "lucide-react";
-
-/* ===================================== TYPES ===================================== */
-type EvidenceWithMeta = IEvidence & { createdAt?: string };
-
-/* ===================================== CONSTANTS ===================================== */
-
+import toast from "react-hot-toast";
 
 /* ===================================== HELPERS ===================================== */
 const formatDuration = (ms: number) => {
@@ -35,15 +31,10 @@ const formatDuration = (ms: number) => {
   const days = Math.floor(abs / (1000 * 60 * 60 * 24));
   const hours = Math.floor((abs / (1000 * 60 * 60)) % 24);
   const minutes = Math.floor((abs / (1000 * 60)) % 60);
-  const seconds = Math.floor((abs / 1000) % 60);
 
-  const parts = [];
-  if (days) parts.push(`${days}d`);
-  if (hours) parts.push(`${hours}h`);
-  if (minutes) parts.push(`${minutes}m`);
-  if (!days && !hours && !minutes) parts.push(`${seconds}s`);
-
-  return parts.join(" ");
+  if (days > 0) return `${days}d ${hours}h left`;
+  if (hours > 0) return `${hours}h ${minutes}m left`;
+  return `${minutes}m remaining`;
 };
 
 /* ===================================== COMPONENT ===================================== */
@@ -58,95 +49,38 @@ const UserIndicatorDetail: React.FC = () => {
 
   const indicator = useMemo<IIndicator | undefined>(
     () => indicators.find((i) => i._id === id),
-    [indicators, id]
+    [indicators, id],
   );
 
   const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
   const [descriptions, setDescriptions] = useState<string[]>([]);
   const [now, setNow] = useState(Date.now());
 
-  /* ======================= REAL-TIME CLOCK ======================= */
   useEffect(() => {
     const t = setInterval(() => setNow(Date.now()), 1000);
     return () => clearInterval(t);
   }, []);
 
-  if (!indicator && !loading) {
-    return (
-      <div className="flex flex-col items-center justify-center h-screen bg-gray-50">
-        <AlertCircle className="text-red-700 w-16 h-16 mb-4" />
-        <h2 className="text-xl font-bold text-[#1E3A2B]">Record Not Found</h2>
-        <p className="text-gray-600 mb-6">
-          The requested indicator could not be retrieved.
-        </p>
-        <button
-          onClick={() => navigate(-1)}
-          className="px-6 py-2 bg-[#1E3A2B] text-white rounded-md hover:bg-opacity-90 transition-all"
-        >
-          Return to Dashboard
-        </button>
-      </div>
-    );
-  }
-
-  if (!indicator) {
-    return (
-      <div className="flex flex-col items-center justify-center h-screen bg-gray-50">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[#C69214] mb-4"></div>
-        <p className="text-[#1E3A2B] font-serif italic font-semibold tracking-wide">
-          Loading Official Judiciary Records...
-        </p>
-      </div>
-    );
-  }
-
-  /* ======================= TIME DERIVATIONS ======================= */
-  const startTime = new Date(indicator.startDate).getTime();
-  const dueTime = new Date(indicator.dueDate).getTime();
-
-  const canSubmit = now >= startTime;
-  const isOverdue = now > dueTime;
-  const timeUntilStart = startTime - now;
-  const timeUntilDue = dueTime - now;
-
-  /* ======================= START COUNTDOWN ======================= */
-  const startCountdownLabel = useMemo(() => {
-    if (canSubmit) return null;
-    return formatDuration(timeUntilStart);
-  }, [canSubmit, timeUntilStart]);
-
-  /* ======================= SUBMISSION INFO ======================= */
-  const submissionInfo = useMemo(() => {
-    if (!indicator.evidence.length) return { status: "notSubmitted" as const };
-
-    const times = indicator.evidence
-      .map((e: EvidenceWithMeta) =>
-        e.createdAt ? new Date(e.createdAt).getTime() : NaN
-      )
-      .filter((t) => !isNaN(t))
-      .sort((a, b) => a - b);
-
-    if (!times.length) return { status: "notSubmitted" as const };
-
-    const diff = dueTime - times[0];
-
-    return {
-      status: "submitted" as const,
-      early: diff > 0,
-      label: formatDuration(diff),
-    };
-  }, [indicator.evidence, dueTime]);
-
-  /* ======================= HANDLERS ======================= */
   const handleFileChange = (files: FileList | null) => {
-    if (!files || !canSubmit) return;
+    if (!files) return;
     const arr = Array.from(files);
-    setSelectedFiles(arr);
-    setDescriptions(arr.map(() => ""));
+    setSelectedFiles((prev) => [...prev, ...arr]);
+    setDescriptions((prev) => [...prev, ...arr.map(() => "")]);
+  };
+
+  const removeFile = (index: number) => {
+    setSelectedFiles((prev) => prev.filter((_, i) => i !== index));
+    setDescriptions((prev) => prev.filter((_, i) => i !== index));
+  };
+
+  const updateDescription = (index: number, val: string) => {
+    setDescriptions((prev) => prev.map((d, i) => (i === index ? val : d)));
   };
 
   const handleSubmit = async () => {
-    if (!selectedFiles.length || !canSubmit) return;
+    if (!selectedFiles.length || !indicator) return;
+    if (descriptions.some((d) => !d.trim()))
+      return toast.error("Please provide a description for every file.");
 
     try {
       await dispatch(
@@ -154,246 +88,208 @@ const UserIndicatorDetail: React.FC = () => {
           id: indicator._id,
           files: selectedFiles,
           descriptions,
-        })
+          zipParent: selectedFiles.length > 1 ? `zip-${Date.now()}` : undefined,
+        }),
       ).unwrap();
 
       getSocket().emit("notification:new", {
-        title: "Evidence Submitted",
-        message: `New evidence for "${indicator.indicatorTitle}"`,
+        title: "Evidence Re-Submitted",
+        message: `Updated evidence submitted for "${indicator.indicatorTitle}".`,
         targetUserId: indicator.createdBy,
       });
 
       setSelectedFiles([]);
       setDescriptions([]);
-    } catch (err) {
-      // Optional: handle local error toast if needed
+      toast.success("Evidence submitted for review!");
+    } catch {
+      toast.error("Failed to submit evidence");
     }
   };
 
-  /* ======================= RENDER ======================= */
+  if (!indicator && !loading) return <NotFound navigate={navigate} />;
+  if (!indicator) return <LoadingRecords />;
+
+  const dueTime = new Date(indicator.dueDate).getTime();
+  const isOverdue = now > dueTime;
+  const canSubmit =
+    now >= new Date(indicator.startDate).getTime() &&
+    !["approved", "completed"].includes(indicator.status);
+  const rejectionNote =
+    indicator.status === "rejected"
+      ? indicator.notes?.[indicator.notes.length - 1]
+      : null;
+
   return (
-    <div className="max-w-6xl mx-auto p-4 md:p-10 space-y-8 bg-gray-50 min-h-screen font-sans text-[#1E3A2B]">
+    <div className="max-w-7xl mx-auto p-6 md:p-10 min-h-screen bg-[#FDFDFD] text-[#1E3A2B]">
       {/* Navigation */}
       <button
         onClick={() => navigate(-1)}
-        className="flex items-center text-xs font-bold tracking-widest text-[#1E3A2B] opacity-70 hover:opacity-100 transition-all uppercase"
+        className="group flex items-center text-[10px] font-black tracking-[0.2em] uppercase opacity-50 hover:opacity-100 transition-all mb-10"
       >
-        <ArrowLeft size={16} className="mr-2" /> Return to List
+        <ArrowLeft
+          size={14}
+          className="mr-2 transition-transform group-hover:-translate-x-1"
+        />
+        Back to Dashboard
       </button>
 
-      {/* Header Card */}
-      <div className="bg-white rounded-lg shadow-md border-l-[6px] border-[#C69214] p-8 overflow-hidden relative">
-        <div className="absolute top-0 right-0 p-4 opacity-5 pointer-events-none">
-          <ShieldCheck size={120} />
-        </div>
-
-        <div className="relative z-10">
-          <span className="text-[10px] font-bold text-[#C69214] uppercase tracking-[0.2em]">
-            Judiciary Indicator Detail
+      {/* Header Section */}
+      <header className="flex flex-col lg:flex-row lg:items-end justify-between gap-8 mb-12">
+        <div className="flex-1">
+          <span className="inline-block text-[10px] font-black text-[#C69214] uppercase tracking-widest bg-[#F9F4E8] px-3 py-1 rounded-md mb-4">
+            Registry Entry #{indicator._id.slice(-6).toUpperCase()}
           </span>
-          <h1 className="text-3xl md:text-4xl font-serif font-bold mt-2 leading-tight">
+          <h1 className="text-4xl md:text-5xl font-serif font-bold mb-4 leading-tight">
             {indicator.indicatorTitle}
           </h1>
+          <p className="text-gray-500 text-sm max-w-2xl leading-relaxed">
+            Please ensure all uploaded documents are legible and comply with
+            audit standards. Once submitted, your progress will be reviewed by
+            the authorized auditor.
+          </p>
+        </div>
 
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-8 mt-10 border-t border-gray-100 pt-8">
-            <div className="space-y-1">
-              <p className="text-[10px] text-gray-400 uppercase font-bold tracking-wider">
-                Current Progress
-              </p>
-              <div className="flex items-center gap-2">
-                <div className="flex-1 bg-gray-100 h-2 rounded-full overflow-hidden">
-                  <div
-                    className="bg-[#1E3A2B] h-full transition-all duration-1000"
-                    style={{ width: `${indicator.progress}%` }}
-                  ></div>
-                </div>
-                <p className="font-mono font-bold text-sm">
-                  {indicator.progress}%
-                </p>
-              </div>
+        <div className="bg-white border border-gray-100 p-6 rounded-2xl shadow-sm flex items-center gap-6 min-w-[240px]">
+          <div className="bg-[#F9F4E8] p-4 rounded-xl">
+            <ShieldCheck className="text-[#C69214]" size={28} />
+          </div>
+          <div>
+            <p className="text-[10px] font-black text-gray-400 uppercase tracking-wider mb-1">
+              Verified Progress
+            </p>
+            <p className="text-4xl font-serif font-bold">
+              {indicator.progress}%
+            </p>
+          </div>
+        </div>
+      </header>
+
+      {/* Rejection Alert */}
+      {rejectionNote && (
+        <div className="mb-10 p-6 bg-red-50 border-l-4 border-red-500 rounded-r-2xl animate-in fade-in slide-in-from-top-4">
+          <div className="flex items-center gap-2 mb-2 text-red-700">
+            <AlertCircle size={16} />
+            <h3 className="text-xs font-black uppercase tracking-widest">
+              Auditor Feedback
+            </h3>
+          </div>
+          <p className="text-sm text-red-800 leading-relaxed font-medium">
+            {rejectionNote.text}
+          </p>
+        </div>
+      )}
+
+      {/* Main Content Grid */}
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-10">
+        {/* Left Column: Stats & Existing Evidence */}
+        <div className="lg:col-span-8 space-y-8">
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-6 bg-white p-8 rounded-2xl border border-gray-100 shadow-sm">
+            <Stat
+              label="Deadline"
+              value={new Date(indicator.dueDate).toLocaleDateString("en-GB")}
+            />
+            <Stat
+              label="Time Clock"
+              value={isOverdue ? "OVERDUE" : formatDuration(dueTime - now)}
+              valueClass={isOverdue ? "text-red-600" : "text-blue-600"}
+              icon={<Clock size={12} />}
+            />
+            <Stat label="Unit" value={indicator.unitOfMeasure} />
+            <Stat
+              label="Status"
+              value={indicator.status.toUpperCase()}
+              valueClass="text-[#C69214]"
+            />
+          </div>
+
+          <div className="bg-white rounded-2xl border border-gray-100 overflow-hidden shadow-sm">
+            <div className="px-8 py-6 border-b border-gray-50 flex justify-between items-center bg-gray-50/30">
+              <h2 className="text-[11px] font-black uppercase tracking-widest flex items-center gap-2">
+                <FileCheck size={16} className="text-[#C69214]" /> Evidence
+                Registry
+              </h2>
+              <span className="text-[10px] font-bold text-gray-400 bg-gray-100 px-2 py-1 rounded">
+                {indicator.evidence.length} Record
+                {indicator.evidence.length !== 1 ? "s" : ""}
+              </span>
             </div>
 
-            <div className="space-y-1">
-              <p className="text-[10px] text-gray-400 uppercase font-bold tracking-wider">
-                Deadline Date
-              </p>
-              <p className="flex items-center gap-2 font-semibold text-sm">
-                <Calendar size={14} className="text-[#C69214]" />
-                {new Date(indicator.dueDate).toLocaleDateString("en-GB", {
-                  day: "numeric",
-                  month: "long",
-                  year: "numeric",
-                })}
-              </p>
-            </div>
-
-            <div className="space-y-1">
-              <p className="text-[10px] text-gray-400 uppercase font-bold tracking-wider">
-                Time Left
-              </p>
-              <p
-                className={`flex items-center gap-2 font-bold text-sm ${
-                  isOverdue ? "text-red-700" : "text-[#1E3A2B]"
-                }`}
-              >
-                <Clock size={14} />
-                {isOverdue
-                  ? "OFFICIAL DEADLINE EXPIRED"
-                  : formatDuration(timeUntilDue)}
-              </p>
-            </div>
-
-            <div className="space-y-1">
-              <p className="text-[10px] text-gray-400 uppercase font-bold tracking-wider">
-                Compliance Status
-              </p>
-              {submissionInfo.status === "notSubmitted" ? (
-                <p className="text-gray-400 text-sm font-semibold italic">
-                  Awaiting Evidence
-                </p>
+            <div className="divide-y divide-gray-50">
+              {indicator.evidence.length > 0 ? (
+                indicator.evidence.map((file) => (
+                  <EvidenceRow
+                    key={file.publicId}
+                    file={file}
+                    onDownload={() =>
+                      dispatch(
+                        downloadEvidence({
+                          indicatorId: indicator._id,
+                          publicId: file.publicId,
+                          fileName: file.fileName,
+                        }),
+                      )
+                    }
+                  />
+                ))
               ) : (
-                <p
-                  className={`text-sm font-bold flex items-center gap-1 ${
-                    submissionInfo.early ? "text-green-800" : "text-red-800"
-                  }`}
-                >
-                  <FileCheck size={14} />
-                  {submissionInfo.label}{" "}
-                  {submissionInfo.early
-                    ? "Early Submission"
-                    : "Late Submission"}
-                </p>
+                <div className="p-12 text-center text-gray-400 text-sm italic">
+                  No evidence uploaded yet.
+                </div>
               )}
             </div>
           </div>
         </div>
-      </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-        {/* Evidence List Section */}
-        <div className="lg:col-span-2 space-y-6">
-          <div className="bg-white rounded-lg shadow-sm p-8 border border-gray-100">
-            <div className="flex items-center justify-between mb-6">
-              <h2 className="text-xl font-serif font-bold flex items-center gap-2 uppercase tracking-wide text-sm">
-                Official Filing History
-              </h2>
-              <span className="text-xs bg-[#F9F4E8] text-[#C69214] px-3 py-1 rounded-full font-bold">
-                {indicator.evidence.length} Records
-              </span>
-            </div>
-
-            {!indicator.evidence.length ? (
-              <div className="text-center py-12 bg-gray-50 rounded-lg border-2 border-dashed border-gray-200">
-                <FileCheck size={40} className="mx-auto text-gray-300 mb-3" />
-                <p className="text-gray-400 font-medium italic">
-                  No evidence has been officially filed yet.
-                </p>
-              </div>
-            ) : (
-              <div className="space-y-3">
-                {indicator.evidence.map((file: EvidenceWithMeta) => (
-                  <div
-                    key={file.publicId}
-                    className="group flex justify-between items-center bg-white border border-gray-200 p-4 rounded-lg hover:border-[#C69214] hover:shadow-md transition-all"
-                  >
-                    <div className="flex items-center gap-4">
-                      <div className="p-3 bg-gray-50 rounded group-hover:bg-[#F9F4E8] transition-colors">
-                        <FileCheck size={20} className="text-[#1E3A2B]" />
-                      </div>
-                      <div>
-                        <p className="font-bold text-sm text-[#1E3A2B]">
-                          {file.fileName}
-                        </p>
-                        <p className="text-[11px] text-gray-400 flex items-center gap-1 mt-1 font-medium">
-                          <Calendar size={10} />
-                          Filed on:{" "}
-                          {file.createdAt
-                            ? new Date(file.createdAt).toLocaleString("en-GB")
-                            : "N/A"}
-                        </p>
-                      </div>
-                    </div>
-                    <button
-                      onClick={() =>
-                        dispatch(
-                          downloadEvidence({
-                            publicId: file.publicId,
-                            fileName: file.fileName,
-                          })
-                        )
-                      }
-                      className="flex items-center gap-2 text-xs font-bold text-[#C69214] hover:text-[#1E3A2B] border-b border-transparent hover:border-[#1E3A2B] transition-all uppercase tracking-wider"
-                    >
-                      <Download size={14} />
-                      Download
-                    </button>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-        </div>
-
-        {/* Upload Section */}
-        <div className="lg:col-span-1">
-          {indicator.status !== "approved" ? (
-            <div className="bg-white rounded-lg shadow-sm border border-gray-100 p-8 sticky top-8">
-              <h2 className="text-sm font-bold uppercase tracking-widest text-[#1E3A2B] mb-6 flex items-center gap-2">
-                Submission Portal
+        {/* Right Column: Upload Section */}
+        <aside className="lg:col-span-4">
+          {canSubmit ? (
+            <div className="bg-white rounded-2xl border border-gray-100 p-6 shadow-xl sticky top-6">
+              <h2 className="text-[11px] font-black uppercase tracking-widest mb-6 flex items-center gap-2">
+                <Plus size={16} className="text-[#C69214]" /> New Submission
               </h2>
 
-              <label
-                className={`flex flex-col items-center justify-center border-2 border-dashed rounded-xl p-8 transition-all group
-                  ${
-                    canSubmit
-                      ? "border-gray-200 hover:border-[#C69214] cursor-pointer hover:bg-[#F9F4E8]"
-                      : "bg-gray-50 border-gray-200 cursor-not-allowed opacity-60"
-                  }`}
-              >
-                <div
-                  className={`p-4 rounded-full mb-4 transition-colors ${
-                    canSubmit
-                      ? "bg-[#F9F4E8] group-hover:bg-[#C69214]"
-                      : "bg-gray-100"
-                  }`}
-                >
+              <label className="group flex flex-col items-center border-2 border-dashed border-gray-200 rounded-2xl p-10 cursor-pointer hover:border-[#C69214] hover:bg-[#F9F4E8]/30 transition-all">
+                <div className="bg-gray-50 p-4 rounded-full group-hover:bg-white transition-colors">
                   <Upload
                     size={24}
-                    className={
-                      canSubmit
-                        ? "text-[#C69214] group-hover:text-white"
-                        : "text-gray-300"
-                    }
+                    className="text-gray-400 group-hover:text-[#C69214]"
                   />
                 </div>
-                <p className="text-xs font-bold text-center leading-relaxed">
-                  {canSubmit
-                    ? "Drag & drop files here or click to browse"
-                    : `Submission window opens in: ${startCountdownLabel}`}
-                </p>
-                <p className="text-[10px] text-gray-400 mt-2 uppercase tracking-tighter">
-                  PDF, DOCX, XLSX up to 10MB
-                </p>
+                <span className="text-[11px] font-black mt-4 uppercase tracking-tighter">
+                  Browse Registry Files
+                </span>
                 <input
                   type="file"
                   multiple
                   hidden
-                  disabled={!canSubmit}
                   onChange={(e) => handleFileChange(e.target.files)}
                 />
               </label>
 
+              {/* Selected Files Preview */}
               {selectedFiles.length > 0 && (
-                <div className="mt-6 space-y-2">
-                  <p className="text-[10px] font-bold text-[#C69214] uppercase tracking-wider">
-                    Pending Selection ({selectedFiles.length})
-                  </p>
+                <div className="mt-8 space-y-4">
                   {selectedFiles.map((file, idx) => (
                     <div
                       key={idx}
-                      className="text-[11px] font-medium bg-gray-50 p-2 rounded truncate border border-gray-100 italic"
+                      className="bg-gray-50 p-4 rounded-xl relative border border-gray-100"
                     >
-                      {file.name}
+                      <button
+                        onClick={() => removeFile(idx)}
+                        className="absolute -top-2 -right-2 bg-white border shadow-sm rounded-full p-1 hover:text-red-500 transition-colors"
+                      >
+                        <X size={12} />
+                      </button>
+                      <p className="text-[10px] font-bold truncate pr-4 mb-2">
+                        {file.name}
+                      </p>
+                      <input
+                        type="text"
+                        placeholder="Describe this evidence..."
+                        className="w-full text-xs p-2 rounded border border-gray-200 focus:outline-none focus:ring-1 focus:ring-[#C69214]"
+                        value={descriptions[idx]}
+                        onChange={(e) => updateDescription(idx, e.target.value)}
+                      />
                     </div>
                   ))}
                 </div>
@@ -401,44 +297,106 @@ const UserIndicatorDetail: React.FC = () => {
 
               <button
                 onClick={handleSubmit}
-                disabled={
-                  !selectedFiles.length || submittingEvidence || !canSubmit
-                }
-                className={`mt-8 w-full py-4 rounded-md font-bold text-xs uppercase tracking-[0.15em] shadow-lg transition-all
-                  ${
-                    !selectedFiles.length || submittingEvidence || !canSubmit
-                      ? "bg-gray-200 text-gray-400 cursor-not-allowed"
-                      : "bg-[#1E3A2B] text-white hover:bg-opacity-90 active:transform active:scale-95"
-                  }
-                `}
+                disabled={!selectedFiles.length || submittingEvidence}
+                className="w-full mt-8 py-4 rounded-xl bg-[#1E3A2B] text-white font-black text-[11px] uppercase tracking-widest disabled:opacity-50 disabled:cursor-not-allowed hover:bg-[#2a4f3b] transition-all shadow-lg active:scale-[0.98]"
               >
                 {submittingEvidence
-                  ? "Processing Filing..."
-                  : "Submit Official Evidence"}
+                  ? "Processing Submission..."
+                  : "Finalize Submission"}
               </button>
-
-              <p className="mt-4 text-[10px] text-center text-gray-400 italic">
-                By submitting, you confirm the accuracy of this documentation.
-              </p>
             </div>
           ) : (
-            <div className="bg-[#1E3A2B] rounded-lg shadow-sm p-8 text-center border-b-4 border-[#C69214]">
-              <div className="bg-white/10 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4">
-                <ShieldCheck className="text-[#C69214]" size={32} />
-              </div>
-              <h3 className="text-white font-bold uppercase tracking-widest text-sm">
-                Approved
-              </h3>
-              <p className="text-white/60 text-xs mt-2">
-                This indicator has been verified and closed by the
-                administration.
+            <div className="bg-gray-50 rounded-2xl border border-dashed border-gray-300 p-8 text-center">
+              <ShieldCheck className="mx-auto text-gray-300 mb-4" size={32} />
+              <p className="text-xs font-bold text-gray-400 uppercase">
+                Submissions Locked
               </p>
             </div>
           )}
-        </div>
+        </aside>
       </div>
     </div>
   );
 };
+
+/* ===================================== SUB COMPONENTS ===================================== */
+const Stat = ({
+  label,
+  value,
+  valueClass,
+  icon,
+}: {
+  label: string;
+  value: string;
+  valueClass?: string;
+  icon?: React.ReactNode;
+}) => (
+  <div className="space-y-1">
+    <p className="text-[9px] uppercase text-gray-400 font-black tracking-widest">
+      {label}
+    </p>
+    <div
+      className={`flex items-center gap-1.5 text-sm font-bold ${valueClass || "text-[#1E3A2B]"}`}
+    >
+      {icon} {value}
+    </div>
+  </div>
+);
+
+const EvidenceRow = ({
+  file,
+  onDownload,
+}: {
+  file: IEvidence;
+  onDownload: () => void;
+}) => (
+  <div className="flex items-center justify-between p-6 hover:bg-gray-50/80 transition-colors group">
+    <div className="flex items-center gap-4">
+      <div className="p-3 bg-gray-100 rounded-lg group-hover:bg-white transition-colors">
+        <FileText size={20} className="text-gray-400" />
+      </div>
+      <div>
+        <p className="text-sm font-bold text-[#1E3A2B]">{file.fileName}</p>
+        <p className="text-[10px] text-gray-400 uppercase tracking-tight">
+          {file.description || "No description provided"}
+        </p>
+      </div>
+    </div>
+    <button
+      onClick={onDownload}
+      className="p-2 text-gray-400 hover:text-[#C69214] hover:bg-[#F9F4E8] rounded-full transition-all"
+      title="Download Evidence"
+    >
+      <Download size={18} />
+    </button>
+  </div>
+);
+
+const LoadingRecords = () => (
+  <div className="flex flex-col items-center justify-center h-screen bg-[#FDFDFD]">
+    <div className="w-10 h-10 border-2 border-[#C69214]/10 border-t-[#C69214] rounded-full animate-spin mb-4" />
+    <p className="text-[10px] font-black uppercase tracking-[0.3em] text-gray-400">
+      Loading Registry
+    </p>
+  </div>
+);
+
+const NotFound = ({ navigate }: { navigate: (n: number) => void }) => (
+  <div className="flex flex-col items-center justify-center h-screen text-center p-6">
+    <div className="bg-red-50 p-6 rounded-full mb-6">
+      <AlertCircle className="text-red-500" size={48} />
+    </div>
+    <h2 className="text-2xl font-serif font-bold mb-2">Record Not Found</h2>
+    <p className="text-gray-500 text-sm mb-8">
+      The requested indicator could not be located in the registry.
+    </p>
+    <button
+      onClick={() => navigate(-1)}
+      className="px-8 py-3 bg-[#1E3A2B] text-white text-[10px] font-black uppercase tracking-widest rounded-full"
+    >
+      Return to Dashboard
+    </button>
+  </div>
+);
 
 export default UserIndicatorDetail;

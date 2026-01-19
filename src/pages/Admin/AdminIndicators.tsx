@@ -1,5 +1,5 @@
 // src/pages/Admin/AdminIndicators.tsx
-import React, { useEffect, useMemo } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { useAppDispatch, useAppSelector } from "../../store/hooks";
 import {
   fetchAllIndicatorsForAdmin,
@@ -20,6 +20,7 @@ import {
   Layers,
   Search,
   ChevronRight,
+  ShieldCheck,
 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 
@@ -32,6 +33,8 @@ const AdminIndicators: React.FC = () => {
   const users = useAppSelector(selectAllUsers);
   const usersLoading = useAppSelector(selectUsersLoading);
 
+  const [searchTerm, setSearchTerm] = useState("");
+
   const isLoading = loading || usersLoading;
 
   useEffect(() => {
@@ -39,12 +42,18 @@ const AdminIndicators: React.FC = () => {
     dispatch(fetchUsers());
   }, [dispatch]);
 
+  // Filtering + Grouping Logic
   const groupedIndicators = useMemo(() => {
+    const filtered = indicators.filter((ind) =>
+      ind.indicatorTitle.toLowerCase().includes(searchTerm.toLowerCase())
+    );
+
     const result: Record<
       string,
       { category: { _id: string; title: string }; indicators: any[] }
     > = {};
-    indicators.forEach((ind) => {
+
+    filtered.forEach((ind) => {
       const category = ind.category ?? {
         _id: "uncategorized",
         title: "General Indicators",
@@ -54,7 +63,7 @@ const AdminIndicators: React.FC = () => {
       result[category._id].indicators.push(ind);
     });
     return result;
-  }, [indicators]);
+  }, [indicators, searchTerm]);
 
   const getUserName = (id: string | null) => {
     if (!id) return "-";
@@ -83,7 +92,8 @@ const AdminIndicators: React.FC = () => {
             Performance Indicators
           </h1>
           <p className="text-[#8c94a4] mt-1 font-medium text-xs sm:text-sm">
-            Judiciary Unified Oversight Registry
+            Judiciary Unified Oversight Registry •{" "}
+            <span className="text-[#c2a336]">Admin Verified Progress</span>
           </p>
         </div>
 
@@ -95,6 +105,8 @@ const AdminIndicators: React.FC = () => {
           <input
             type="text"
             placeholder="Search registry..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
             className="w-full pl-12 pr-4 py-3 bg-white border border-gray-200 rounded-2xl focus:ring-2 focus:ring-[#c2a336] focus:border-transparent outline-none transition-all text-sm shadow-sm"
           />
         </div>
@@ -114,7 +126,6 @@ const AdminIndicators: React.FC = () => {
               key={group.category._id}
               className="animate-in fade-in slide-in-from-bottom-4 duration-500"
             >
-              {/* Category Header */}
               <div className="flex items-center justify-between mb-6 px-2">
                 <div className="flex items-center gap-3">
                   <div className="h-6 w-1 bg-[#c2a336] rounded-full" />
@@ -127,9 +138,8 @@ const AdminIndicators: React.FC = () => {
                 </span>
               </div>
 
-              {/* Responsive Table/Card Wrapper */}
               <div className="bg-white rounded-[1.5rem] sm:rounded-[2rem] shadow-xl shadow-black/[0.02] border border-gray-100 overflow-hidden">
-                {/* DESKTOP TABLE VIEW (Visible on sm+) */}
+                {/* DESKTOP VIEW */}
                 <div className="hidden sm:block overflow-x-auto">
                   <table className="min-w-full text-sm">
                     <thead>
@@ -144,7 +154,7 @@ const AdminIndicators: React.FC = () => {
                           Timeline
                         </th>
                         <th className="px-6 py-5 text-left font-black">
-                          Progress
+                          Audit Progress
                         </th>
                         <th className="px-6 py-5 text-center font-black">
                           Status
@@ -185,15 +195,21 @@ const AdminIndicators: React.FC = () => {
                             </div>
                           </td>
                           <td className="px-6 py-5">
-                            <div className="w-24 bg-gray-100 rounded-full h-1.5 mb-1">
+                            <div className="flex items-center gap-2 mb-1">
+                              <ShieldCheck
+                                size={10}
+                                className="text-[#c2a336]"
+                              />
+                              <span className="text-[10px] font-black text-[#1a3a32]">
+                                {i.progress}% Verified
+                              </span>
+                            </div>
+                            <div className="w-24 bg-gray-100 rounded-full h-1.5">
                               <div
-                                className="bg-[#1a3a32] h-1.5 rounded-full"
+                                className="bg-[#1a3a32] h-1.5 rounded-full transition-all"
                                 style={{ width: `${i.progress}%` }}
                               />
                             </div>
-                            <span className="text-[10px] font-black text-[#1a3a32]">
-                              {i.progress}%
-                            </span>
                           </td>
                           <td className="px-6 py-5 text-center">
                             <StatusBadge status={i.status} />
@@ -203,7 +219,7 @@ const AdminIndicators: React.FC = () => {
                               onClick={() =>
                                 navigate(`/admin/indicators/${i._id}`)
                               }
-                              className="p-2 text-[#c2a336] hover:bg-[#1a3a32] hover:text-white rounded-xl transition-all"
+                              className="p-2 text-[#c2a336] hover:bg-[#1a3a32] hover:text-white rounded-xl transition-all shadow-sm"
                             >
                               <Eye size={18} />
                             </button>
@@ -214,7 +230,7 @@ const AdminIndicators: React.FC = () => {
                   </table>
                 </div>
 
-                {/* MOBILE CARD VIEW (Visible only on < sm) */}
+                {/* MOBILE VIEW */}
                 <div className="sm:hidden divide-y divide-gray-50">
                   {group.indicators.map((i) => (
                     <div
@@ -229,30 +245,10 @@ const AdminIndicators: React.FC = () => {
                       <h4 className="font-bold text-[#1a3a32] leading-snug mb-2">
                         {i.indicatorTitle}
                       </h4>
-                      <div className="grid grid-cols-2 gap-4 mt-4">
-                        <div>
-                          <p className="text-[9px] uppercase font-black text-gray-400 tracking-widest mb-1">
-                            Official
-                          </p>
-                          <p className="text-xs font-bold text-[#1a3a32] truncate">
-                            {i.assignedToType === "individual"
-                              ? getUserName(i.assignedTo)
-                              : "Group"}
-                          </p>
-                        </div>
-                        <div>
-                          <p className="text-[9px] uppercase font-black text-gray-400 tracking-widest mb-1">
-                            Deadline
-                          </p>
-                          <p className="text-xs font-bold text-[#1a3a32]">
-                            {new Date(i.dueDate).toLocaleDateString()}
-                          </p>
-                        </div>
-                      </div>
                       <div className="mt-4 pt-4 border-t border-gray-50">
                         <div className="flex justify-between items-center mb-1">
-                          <span className="text-[9px] font-black uppercase text-gray-400">
-                            Progress
+                          <span className="text-[9px] font-black uppercase text-[#c2a336] flex items-center gap-1">
+                            <ShieldCheck size={10} /> Admin Progress
                           </span>
                           <span className="text-[10px] font-black text-[#1a3a32]">
                             {i.progress}%
@@ -260,7 +256,7 @@ const AdminIndicators: React.FC = () => {
                         </div>
                         <div className="w-full bg-gray-100 rounded-full h-1.5">
                           <div
-                            className="bg-[#1a3a32] h-1.5 rounded-full transition-all duration-500"
+                            className="bg-[#1a3a32] h-1.5 rounded-full"
                             style={{ width: `${i.progress}%` }}
                           />
                         </div>
@@ -277,13 +273,15 @@ const AdminIndicators: React.FC = () => {
   );
 };
 
-/* --- Refactored Sub-Components --- */
+/* --- Sub-Components --- */
 
 const StatusBadge = ({ status }: { status: string }) => {
   const styles =
     {
       approved: "bg-emerald-50 border-emerald-100 text-emerald-700",
+      completed: "bg-[#1a3a32] border-[#1a3a32] text-white", // Added SuperAdmin completed style
       pending: "bg-amber-50 border-amber-100 text-amber-700",
+      submitted: "bg-blue-50 border-blue-100 text-blue-700",
       rejected: "bg-rose-50 border-rose-100 text-rose-700",
     }[status] || "bg-gray-50 text-gray-600";
 

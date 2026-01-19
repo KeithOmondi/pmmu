@@ -21,6 +21,7 @@ import {
   Calendar,
   ChevronRight,
   TrendingUp,
+  Target,
 } from "lucide-react";
 
 interface TreeNode {
@@ -31,14 +32,14 @@ interface TreeNode {
   indicators: IIndicator[];
 }
 
-const STATUS_COLORS: Record<string, string> = {
-  submitted: "bg-purple-100 text-purple-800",
-  approved: "bg-emerald-100 text-emerald-800",
-  rejected: "bg-rose-100 text-rose-800",
-  ongoing: "bg-blue-100 text-blue-800",
-  pending: "bg-amber-100 text-amber-800",
-  overdue: "bg-red-100 text-red-800",
-  completed: "bg-gray-100 text-gray-700",
+const STATUS_STYLES: Record<string, string> = {
+  submitted: "bg-purple-50 text-purple-700 border-purple-100",
+  approved: "bg-emerald-50 text-emerald-700 border-emerald-100",
+  completed: "bg-emerald-50 text-emerald-700 border-emerald-100",
+  rejected: "bg-rose-50 text-rose-700 border-rose-100",
+  ongoing: "bg-blue-50 text-blue-700 border-blue-100",
+  pending: "bg-amber-50 text-amber-700 border-amber-100",
+  overdue: "bg-red-50 text-red-700 border-red-100",
 };
 
 const getLiveStatus = (indicator: IIndicator) => {
@@ -46,17 +47,17 @@ const getLiveStatus = (indicator: IIndicator) => {
   const startTime = new Date(indicator.startDate).getTime();
   const dueTime = new Date(indicator.dueDate).getTime();
 
-  if (indicator.status === "submitted") return "submitted";
-  if (indicator.status === "approved") return "approved";
+  // Final statuses prioritized
+  if (indicator.status === "approved" || indicator.status === "completed")
+    return "approved";
   if (indicator.status === "rejected") return "rejected";
+  if (indicator.status === "submitted") return "submitted";
 
-  if (indicator.progress >= 100) return "completed";
-
+  // Logical time-based statuses
   if (now < startTime) return "pending";
-  if (now >= startTime && now <= dueTime) return "ongoing";
-  if (now > dueTime) return "overdue";
+  if (now > dueTime && indicator.progress < 100) return "overdue";
 
-  return "pending";
+  return "ongoing";
 };
 
 const UserIndicators: React.FC = () => {
@@ -140,39 +141,31 @@ const UserIndicators: React.FC = () => {
   }, [categories, indicators, categoryMap]);
 
   const renderNode = (node: TreeNode, depth = 0) => (
-    <div key={node.id} className="mb-6 last:mb-0">
-      {/* Category Header */}
+    <div key={node.id} className="mb-10 last:mb-0">
       <div
-        className="flex items-center gap-3 md:gap-4 mb-4"
-        style={{
-          paddingLeft:
-            typeof window !== "undefined" && window.innerWidth < 768
-              ? 0
-              : depth * 20,
-        }}
+        className="flex items-center gap-4 mb-6"
+        style={{ paddingLeft: depth * 24 }}
       >
         <div
-          className={`flex items-center gap-2 md:gap-3 px-3 md:px-4 py-2 rounded-xl md:rounded-2xl ${
+          className={`flex items-center gap-3 px-5 py-2.5 rounded-2xl ${
             depth === 0
-              ? "bg-[#1a3a32] text-white shadow-lg"
-              : "bg-white text-[#1a3a32] border border-gray-100"
+              ? "bg-[#1a3a32] text-white shadow-xl shadow-[#1a3a32]/10"
+              : "bg-white text-[#1a3a32] border border-gray-100 shadow-sm"
           }`}
         >
           <Layers
-            size={depth === 0 ? 16 : 14}
-            className={depth === 0 ? "text-[#c2a336]" : "text-gray-400"}
+            size={depth === 0 ? 18 : 14}
+            className={depth === 0 ? "text-[#c2a336]" : "text-[#c2a336]"}
           />
           <h3
             className={`font-black uppercase tracking-widest ${
-              depth === 0
-                ? "text-[10px] md:text-xs"
-                : "text-[9px] md:text-[10px]"
+              depth === 0 ? "text-xs" : "text-[10px]"
             }`}
           >
             {node.title}
           </h3>
           <span
-            className={`text-[8px] md:text-[9px] font-black px-1.5 py-0.5 rounded-full ${
+            className={`text-[10px] font-black px-2 py-0.5 rounded-lg ${
               depth === 0
                 ? "bg-white/10 text-white"
                 : "bg-gray-100 text-gray-400"
@@ -184,151 +177,72 @@ const UserIndicators: React.FC = () => {
         <div className="h-[1px] flex-1 bg-gradient-to-r from-gray-200 to-transparent" />
       </div>
 
-      {/* Indicators */}
       {node.indicators.length > 0 && (
         <div
-          className="mb-8"
-          style={{
-            marginLeft:
-              typeof window !== "undefined" && window.innerWidth < 768
-                ? 0
-                : depth * 20 + 20,
-          }}
+          className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8"
+          style={{ marginLeft: (depth + 1) * 24 }}
         >
-          <div className="hidden md:block bg-white rounded-[2rem] border border-gray-100 shadow-sm overflow-hidden transition-all hover:shadow-md">
-            <table className="w-full text-left">
-              <thead className="bg-[#fcfcfc] border-b border-gray-50">
-                <tr>
-                  <th className="px-8 py-4 text-[10px] font-black uppercase tracking-widest text-gray-400">
-                    Indicator Dossier
-                  </th>
-                  <th className="px-8 py-4 text-[10px] font-black uppercase tracking-widest text-gray-400">
-                    Timeline
-                  </th>
-                  <th className="px-8 py-4 text-[10px] font-black uppercase tracking-widest text-gray-400">
-                    Completion
-                  </th>
-                  <th className="px-8 py-4 text-[10px] font-black uppercase tracking-widest text-gray-400">
-                    Status
-                  </th>
-                  <th className="px-8 py-4 text-right text-[10px] font-black uppercase tracking-widest text-gray-400">
-                    Audit
-                  </th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-50">
-                {node.indicators.map((i) => {
-                  const status = getLiveStatus(i); // <-- Dynamic status based on progress
-                  return (
-                    <tr
-                      key={i._id}
-                      className="group hover:bg-[#fcfcfc] transition-colors"
-                    >
-                      <td className="px-8 py-5">
-                        <p className="font-black text-[#1a3a32] text-sm group-hover:text-[#c2a336] transition-colors">
-                          {i.indicatorTitle}
-                        </p>
-                        <p className="text-[10px] font-bold text-gray-400 uppercase tracking-tighter mt-0.5">
-                          Target: {i.unitOfMeasure}
-                        </p>
-                      </td>
-                      <td className="px-8 py-5 text-xs font-bold text-gray-500 whitespace-nowrap">
-                        <div className="flex items-center gap-2">
-                          <Calendar size={14} className="text-[#c2a336]" />
-                          <span>
-                            {new Date(i.dueDate).toLocaleDateString("en-GB", {
-                              month: "short",
-                              day: "numeric",
-                              year: "numeric",
-                            })}
-                          </span>
-                        </div>
-                      </td>
-                      <td className="px-8 py-5">
-                        <div className="flex items-center gap-3">
-                          <div className="w-24 lg:w-32 h-1.5 bg-gray-100 rounded-full overflow-hidden">
-                            <div
-                              className="h-full bg-[#1a3a32] rounded-full transition-all duration-1000"
-                              style={{ width: `${i.progress}%` }}
-                            />
-                          </div>
-                          <span className="text-xs font-black text-[#1a3a32]">
-                            {i.progress}%
-                          </span>
-                        </div>
-                      </td>
-                      <td className="px-8 py-5">
-                        <span
-                          className={`px-2 py-1 rounded-full text-[10px] font-black uppercase ${
-                            STATUS_COLORS[status.toLowerCase()] ||
-                            "bg-gray-100 text-gray-400"
-                          }`}
-                        >
-                          {status}
-                        </span>
-                      </td>
-                      <td className="px-8 py-5 text-right">
-                        <button
-                          onClick={() => navigate(`/user/indicators/${i._id}`)}
-                          className="inline-flex items-center gap-2 px-5 py-2 text-[10px] font-black uppercase tracking-widest rounded-xl bg-white border border-gray-100 text-[#1a3a32] hover:bg-[#1a3a32] hover:text-white hover:border-[#1a3a32] transition-all shadow-sm"
-                        >
-                          Inspect
-                          <ChevronRight size={14} />
-                        </button>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
+          {node.indicators.map((i) => {
+            const status = getLiveStatus(i);
+            return (
+              <div
+                key={i._id}
+                onClick={() => navigate(`/user/indicators/${i._id}`)}
+                className="group relative bg-white rounded-[2rem] p-6 border border-gray-100 shadow-sm hover:shadow-xl hover:shadow-[#1a3a32]/5 transition-all cursor-pointer overflow-hidden"
+              >
+                {/* Background Decoration */}
+                <div className="absolute -right-4 -top-4 opacity-[0.03] group-hover:opacity-[0.08] transition-opacity">
+                  <Target size={120} />
+                </div>
 
-          {/* Mobile Card View */}
-          <div className="grid grid-cols-1 gap-4 md:hidden">
-            {node.indicators.map((i) => {
-              const status = getLiveStatus(i);
-              return (
-                <div
-                  key={i._id}
-                  className="bg-white p-5 rounded-2xl border border-gray-100 shadow-sm active:scale-[0.98] transition-transform"
-                  onClick={() => navigate(`/user/indicators/${i._id}`)}
-                >
+                <div className="relative z-10">
                   <div className="flex justify-between items-start mb-4">
-                    <div>
-                      <h4 className="font-black text-[#1a3a32] text-sm leading-tight mb-1">
-                        {i.indicatorTitle}
-                      </h4>
-                      <p className="text-[9px] font-bold text-gray-400 uppercase tracking-widest">
-                        Unit: {i.unitOfMeasure}
-                      </p>
-                    </div>
-                    <ChevronRight size={18} className="text-gray-300" />
-                  </div>
-                  <div className="flex items-center justify-between text-[10px] font-bold mb-2">
-                    <div className="flex items-center gap-2 text-gray-500">
-                      <Calendar size={12} className="text-[#c2a336]" />
-                      <span>{new Date(i.dueDate).toLocaleDateString()}</span>
-                    </div>
-                    <span className="text-[#1a3a32]">{i.progress}%</span>
-                  </div>
-                  <div className="w-full h-1.5 bg-gray-100 rounded-full overflow-hidden mb-2">
-                    <div
-                      className="h-full bg-[#1a3a32] rounded-full"
-                      style={{ width: `${i.progress}%` }}
+                    <span
+                      className={`px-3 py-1 rounded-full text-[9px] font-black uppercase tracking-widest border ${STATUS_STYLES[status]}`}
+                    >
+                      {status}
+                    </span>
+                    <ChevronRight
+                      size={16}
+                      className="text-gray-300 group-hover:text-[#c2a336] transition-colors"
                     />
                   </div>
-                  <span
-                    className={`px-2 py-1 rounded-full text-[10px] font-black uppercase ${
-                      STATUS_COLORS[status.toLowerCase()] ||
-                      "bg-gray-100 text-gray-400"
-                    }`}
-                  >
-                    {status}
-                  </span>
+
+                  <h4 className="font-black text-[#1a3a32] text-sm leading-snug mb-4 min-h-[40px] line-clamp-2 group-hover:text-[#c2a336] transition-colors">
+                    {i.indicatorTitle}
+                  </h4>
+
+                  <div className="space-y-4">
+                    <div className="flex justify-between items-end">
+                      <div className="space-y-1">
+                        <p className="text-[9px] font-black text-gray-400 uppercase tracking-tighter flex items-center gap-1">
+                          <Calendar size={10} /> Deadline
+                        </p>
+                        <p className="text-[10px] font-bold text-[#1a3a32]">
+                          {new Date(i.dueDate).toLocaleDateString()}
+                        </p>
+                      </div>
+                      <div className="text-right">
+                        <p className="text-[9px] font-black text-gray-400 uppercase tracking-tighter">
+                          Current Audit
+                        </p>
+                        <p className="text-sm font-black text-[#1a3a32]">
+                          {i.progress}%
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="w-full h-2 bg-gray-50 rounded-full overflow-hidden border border-gray-100">
+                      <div
+                        className="h-full bg-[#1a3a32] rounded-full transition-all duration-1000 group-hover:bg-[#c2a336]"
+                        style={{ width: `${i.progress}%` }}
+                      />
+                    </div>
+                  </div>
                 </div>
-              );
-            })}
-          </div>
+              </div>
+            );
+          })}
         </div>
       )}
 
@@ -338,67 +252,72 @@ const UserIndicators: React.FC = () => {
     </div>
   );
 
-  if (loading) {
-    return (
-      <div className="flex flex-col items-center justify-center h-screen bg-[#f8f9fa] p-4 text-center">
-        <Loader2 className="w-12 h-12 animate-spin text-[#1a3a32] mb-4" />
-        <p className="text-[10px] font-black uppercase tracking-[0.3em] text-[#8c94a4]">
-          Syncing Records...
-        </p>
-      </div>
-    );
-  }
+  if (loading) return <LoadingState />;
 
-  if (!indicators.length) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-[#f8f9fa] p-6 md:p-10">
-        <div className="max-w-md w-full bg-white p-8 md:p-12 rounded-[2rem] md:rounded-[3rem] border border-gray-100 shadow-xl shadow-black/5 text-center">
-          <div className="w-16 h-16 md:w-20 md:h-20 bg-[#f8f9fa] rounded-full flex items-center justify-center mx-auto mb-6">
-            <FolderOpen className="w-8 h-8 md:w-10 md:h-10 text-gray-200" />
-          </div>
-          <h3 className="font-black text-[#1a3a32] text-xl md:text-2xl tracking-tight mb-2">
-            Registry Clear
-          </h3>
-          <p className="text-[#8c94a4] text-sm leading-relaxed">
-            No performance indicators have been assigned to your profile.
-          </p>
-        </div>
-      </div>
-    );
-  }
+  if (!indicators.length) return <EmptyState />;
 
   return (
-    <div className="min-h-screen bg-[#f8f9fa] p-4 md:p-8 lg:p-12">
-      <div className="max-w-6xl mx-auto">
-        <header className="mb-8 md:mb-12 flex flex-col md:flex-row md:items-end justify-between gap-6 border-b border-gray-200 pb-8 md:pb-10">
-          <div className="space-y-2">
-            <div className="flex items-center gap-2 text-[#c2a336] text-[9px] md:text-[10px] font-black uppercase tracking-[0.2em] md:tracking-[0.3em]">
-              <ShieldCheck size={14} />
-              Performance Portfolio
+    <div className="min-h-screen bg-[#f8f9fa] p-6 md:p-10 lg:p-14">
+      <div className="max-w-7xl mx-auto">
+        <header className="mb-12 flex flex-col md:flex-row md:items-end justify-between gap-8 border-b border-gray-200 pb-12">
+          <div className="space-y-3">
+            <div className="flex items-center gap-2 text-[#c2a336] text-[10px] font-black uppercase tracking-[0.3em]">
+              <ShieldCheck size={16} /> Secure Personnel Access
             </div>
-            <h1 className="text-3xl md:text-3xl font-black text-[#1a3a32] tracking-tighter leading-tight">
-              Personnel Records
+            <h1 className="text-4xl font-black text-[#1a3a32] tracking-tighter leading-tight">
+              Indicator <span className="text-gray-300">Registry</span>
             </h1>
           </div>
-          <div className="flex gap-4">
-            <div className="bg-[#1a3a32] text-white px-6 md:px-8 py-3 md:py-4 rounded-2xl md:rounded-[2rem] shadow-xl shadow-[#1a3a32]/10 flex-1 md:flex-none md:min-w-[160px]">
-              <div className="flex items-center gap-2 text-[#c2a336] text-[9px] md:text-[10px] font-black uppercase tracking-widest mb-0.5 md:mb-1">
-                <TrendingUp size={12} />
-                Task(s)
-              </div>
-              <p className="text-2xl md:text-3xl font-black">
+          <div className="bg-[#1a3a32] text-white p-6 rounded-[2.5rem] shadow-2xl shadow-[#1a3a32]/20 flex items-center gap-8 min-w-[240px]">
+            <div>
+              <p className="text-[#c2a336] text-[10px] font-black uppercase tracking-[0.2em] mb-1">
+                Active Metrics
+              </p>
+              <p className="text-3xl font-black leading-none">
                 {indicators.length}
               </p>
             </div>
+            <div className="h-10 w-[1px] bg-white/10" />
+            <TrendingUp size={24} className="text-[#c2a336]" />
           </div>
         </header>
 
-        <main className="space-y-8 md:space-y-10">
-          {Object.values(tree).map((node) => renderNode(node))}
-        </main>
+        <main>{Object.values(tree).map((node) => renderNode(node))}</main>
       </div>
     </div>
   );
 };
+
+/* --- SUB-COMPONENTS --- */
+const LoadingState = () => (
+  <div className="flex flex-col items-center justify-center h-screen bg-[#f8f9fa] p-4 text-center">
+    <div className="relative">
+      <Loader2 className="w-14 h-14 animate-spin text-[#1a3a32]" />
+      <ShieldCheck
+        className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 text-[#c2a336]"
+        size={16}
+      />
+    </div>
+    <p className="text-[10px] font-black uppercase tracking-[0.4em] text-[#8c94a4] mt-6">
+      Decrypting Portfolio...
+    </p>
+  </div>
+);
+
+const EmptyState = () => (
+  <div className="min-h-screen flex items-center justify-center bg-[#f8f9fa] p-6">
+    <div className="max-w-md w-full bg-white p-12 rounded-[3rem] border border-gray-100 shadow-xl text-center">
+      <div className="w-20 h-20 bg-gray-50 rounded-full flex items-center justify-center mx-auto mb-8">
+        <FolderOpen className="w-10 h-10 text-gray-200" />
+      </div>
+      <h3 className="font-black text-[#1a3a32] text-2xl tracking-tight mb-3">
+        Void Registry
+      </h3>
+      <p className="text-[#8c94a4] text-sm leading-relaxed font-medium">
+        No performance indicators have been assigned to this terminal.
+      </p>
+    </div>
+  </div>
+);
 
 export default UserIndicators;

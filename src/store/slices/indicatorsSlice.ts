@@ -22,21 +22,42 @@ export type IndicatorStatus =
 
 export type AssignedToType = "individual" | "group";
 
+export interface INote {
+  text: string;
+  createdBy: string | null;
+  createdAt: string;
+}
+
 export interface IEvidence {
   type: "file";
-  fileUrl: string;
   fileName: string;
-  publicId: string;
-  fileType: string;
   fileSize: number;
+  publicId: string;
+  mimeType: string;
+  secureUrl?: string;
+  resourceType?: "image" | "raw" | "video";
+  cloudinaryType?: "authenticated" | "upload";
+  format?: string;
   description?: string;
-  createdAt?: string; // Ensure createdAt is always tracked
+  createdAt?: string;
+  zipParent?: string;
+  reviewed?: boolean;
 }
 
 export interface ICategoryRef {
   _id: string;
   title: string;
   code?: string;
+}
+
+export interface UpdateProgressPayload {
+  id: string;
+  progress: number;
+}
+
+export interface RejectIndicatorPayload {
+  id: string;
+  notes: string;
 }
 
 export interface IIndicator {
@@ -51,12 +72,12 @@ export interface IIndicator {
   startDate: string;
   dueDate: string;
   progress: number;
-  notes: unknown[];
+  notes: INote[];
   evidence: IEvidence[];
   status: IndicatorStatus;
   result?: "pass" | "fail" | null;
-  createdBy: any;
-  reviewedBy: any;
+  createdBy: string | null;
+  reviewedBy: string | null;
   reviewedAt: string | null;
   calendarEvent?: Record<string, unknown> | null;
   createdAt: string;
@@ -90,9 +111,11 @@ export interface SubmitEvidencePayload {
   id: string;
   files: File[];
   descriptions?: string[];
+  zipParent?: string;
 }
 
 export interface DownloadEvidencePayload {
+  indicatorId: string;
   publicId: string;
   fileName: string;
 }
@@ -107,22 +130,41 @@ const normalizeIndicator = (i: any): IIndicator => ({
   level2Category: i.level2Category ?? null,
   unitOfMeasure: i.unitOfMeasure ?? "",
   assignedToType: i.assignedToType ?? "individual",
-  assignedTo: i.assignedTo ?? null,
-  assignedGroup: Array.isArray(i.assignedGroup) ? i.assignedGroup : [],
+  assignedTo: i.assignedTo?._id ?? i.assignedTo ?? null,
+  assignedGroup: Array.isArray(i.assignedGroup)
+    ? i.assignedGroup.map((g: any) => g._id ?? g)
+    : [],
   startDate: i.startDate ?? "",
   dueDate: i.dueDate ?? "",
   progress: i.progress ?? 0,
-  notes: Array.isArray(i.notes) ? i.notes : [],
+  notes: Array.isArray(i.notes)
+    ? i.notes.map((n: any) => ({
+        text: n.text ?? "",
+        createdBy: n.createdBy?._id ?? n.createdBy ?? null,
+        createdAt: n.createdAt ?? new Date().toISOString(),
+      }))
+    : [],
   evidence: Array.isArray(i.evidence)
     ? i.evidence.map((e: any) => ({
-        ...e,
-        createdAt: e.createdAt ?? new Date().toISOString(), // Ensure createdAt exists
+        type: e.type,
+        fileName: e.fileName,
+        fileSize: e.fileSize,
+        publicId: e.publicId,
+        mimeType: e.mimeType,
+        secureUrl: e.secureUrl,
+        resourceType: e.resourceType,
+        cloudinaryType: e.cloudinaryType,
+        format: e.format,
+        description: e.description,
+        zipParent: e.zipParent,
+        reviewed: e.reviewed ?? false,
+        createdAt: e.createdAt ?? new Date().toISOString(),
       }))
     : [],
   status: i.status ?? "pending",
   result: i.result ?? null,
-  createdBy: i.createdBy ?? null,
-  reviewedBy: i.reviewedBy ?? null,
+  createdBy: i.createdBy?._id ?? i.createdBy ?? null,
+  reviewedBy: i.reviewedBy?._id ?? i.reviewedBy ?? null,
   reviewedAt: i.reviewedAt ?? null,
   calendarEvent: i.calendarEvent ?? null,
   createdAt: i.createdAt ?? "",
@@ -136,6 +178,9 @@ const handleError = (err: unknown, fallback: string) => {
   }
   return (err as Error)?.message ?? fallback;
 };
+
+const updateList = (list: IIndicator[], updated: IIndicator) =>
+  list.map((i) => (i._id === updated._id ? updated : i));
 
 /* =====================================
    ASYNC THUNKS
@@ -218,20 +263,24 @@ export const deleteIndicator = createAsyncThunk<
   }
 });
 
-/* =====================================
-   SUBMIT EVIDENCE
-===================================== */
 export const submitIndicatorEvidence = createAsyncThunk<
   IIndicator,
   SubmitEvidencePayload,
   { rejectValue: string }
 >(
   "indicators/submitEvidence",
-  async ({ id, files, descriptions }, { dispatch, rejectWithValue }) => {
+  async (
+    { id, files, descriptions = [], zipParent },
+    { dispatch, rejectWithValue }
+  ) => {
     try {
       const formData = new FormData();
-      files.forEach((file) => formData.append("files", file));
-      descriptions?.forEach((desc) => formData.append("descriptions", desc));
+      files.forEach((file, idx) => {
+        formData.append("files", file);
+        if (descriptions[idx])
+          formData.append("descriptions", descriptions[idx]);
+        if (zipParent) formData.append("zipParent", zipParent);
+      });
 
       const { data } = await api.post(`/indicators/submit/${id}`, formData, {
         headers: { "Content-Type": "multipart/form-data" },
@@ -256,30 +305,40 @@ export const submitIndicatorEvidence = createAsyncThunk<
   }
 );
 
-/* =====================================
-   DOWNLOAD / APPROVE / REJECT
-===================================== */
 export const downloadEvidence = createAsyncThunk<
-  void,
+  { success: true },
   DownloadEvidencePayload,
   { rejectValue: string }
 >(
   "indicators/downloadEvidence",
-  async ({ publicId, fileName }, { rejectWithValue }) => {
+  async ({ indicatorId, publicId, fileName }, { rejectWithValue }) => {
     try {
-      const response = await api.get(`/indicators/evidence/${publicId}`, {
-        responseType: "blob",
-      });
-      const url = URL.createObjectURL(new Blob([response.data]));
+      const response = await api.get(
+        `/indicators/${indicatorId}/evidence/${encodeURIComponent(
+          publicId
+        )}/download`,
+        { responseType: "blob" }
+      );
+      const url = window.URL.createObjectURL(new Blob([response.data]));
       const link = document.createElement("a");
       link.href = url;
-      link.download = fileName;
+      link.setAttribute("download", fileName);
       document.body.appendChild(link);
       link.click();
-      document.body.removeChild(link);
-      URL.revokeObjectURL(url);
-    } catch {
-      return rejectWithValue("Failed to download evidence");
+      link.parentNode?.removeChild(link);
+      window.URL.revokeObjectURL(url);
+      return { success: true };
+    } catch (err: any) {
+      if (err.response?.data instanceof Blob) {
+        const text = await err.response.data.text();
+        try {
+          const json = JSON.parse(text);
+          return rejectWithValue(json.message || "Download failed");
+        } catch {
+          return rejectWithValue("Download failed");
+        }
+      }
+      return rejectWithValue(handleError(err, "Secure download failed"));
     }
   }
 );
@@ -297,18 +356,50 @@ export const approveIndicator = createAsyncThunk<
   }
 });
 
+// Reject Indicator
 export const rejectIndicator = createAsyncThunk<
   IIndicator,
-  string,
+  { id: string; notes: string },
   { rejectValue: string }
->("indicators/reject", async (id, { rejectWithValue }) => {
-  try {
-    const { data } = await api.put(`/indicators/reject/${id}`);
-    return normalizeIndicator(data.indicator);
-  } catch (err) {
-    return rejectWithValue(handleError(err, "Rejection failed"));
+>(
+  "indicators/reject",
+  async ({ id, notes }, { rejectWithValue }) => {
+    if (!notes.trim()) return rejectWithValue("Rejection requires a remark");
+
+    try {
+      // ⚡ Update URL to match backend
+      const { data } = await api.put(`/indicators/reject/${id}`, {
+        notes: notes.trim(),
+        status: "rejected",
+      });
+      return normalizeIndicator(data.indicator);
+    } catch (err: any) {
+      return rejectWithValue(err.response?.data?.message ?? "Rejection failed");
+    }
   }
-});
+);
+
+
+
+
+
+export const updateIndicatorProgress = createAsyncThunk<
+  IIndicator,
+  UpdateProgressPayload,
+  { rejectValue: string }
+>(
+  "indicators/updateProgress",
+  async ({ id, progress }, { rejectWithValue }) => {
+    try {
+      const { data } = await api.patch(`/indicators/${id}/progress`, {
+        progress,
+      });
+      return normalizeIndicator(data.indicator || data.data);
+    } catch (err) {
+      return rejectWithValue(handleError(err, "Failed to update progress"));
+    }
+  }
+);
 
 /* =====================================
    SLICE
@@ -333,9 +424,6 @@ const initialState: IndicatorState = {
   successMessage: null,
 };
 
-const updateList = (list: IIndicator[], updated: IIndicator) =>
-  list.map((i) => (i._id === updated._id ? updated : i));
-
 const indicatorSlice = createSlice({
   name: "indicators",
   initialState,
@@ -347,7 +435,7 @@ const indicatorSlice = createSlice({
   },
   extraReducers: (builder) => {
     builder
-      /* ----------------- Evidence Submission ----------------- */
+      /* ---------------- Evidence Submission ---------------- */
       .addCase(submitIndicatorEvidence.pending, (s) => {
         s.submittingEvidence = true;
         s.error = null;
@@ -366,26 +454,14 @@ const indicatorSlice = createSlice({
         }
       )
 
-      /* ----------------- Other Fulfilled Actions ----------------- */
+      /* ---------------- Create / Update / Delete ---------------- */
+      .addCase(createIndicator.fulfilled, (s, a) => {
+        s.userIndicators.push(a.payload);
+      })
       .addCase(updateIndicator.fulfilled, (s, a) => {
         s.userIndicators = updateList(s.userIndicators, a.payload);
         s.allIndicators = updateList(s.allIndicators, a.payload);
         s.submittedIndicators = updateList(s.submittedIndicators, a.payload);
-      })
-      .addCase(approveIndicator.fulfilled, (s, a) => {
-        s.submittedIndicators = updateList(s.submittedIndicators, a.payload);
-      })
-      .addCase(rejectIndicator.fulfilled, (s, a) => {
-        s.submittedIndicators = updateList(s.submittedIndicators, a.payload);
-      })
-      .addCase(fetchUserIndicators.fulfilled, (s, a) => {
-        s.userIndicators = a.payload;
-      })
-      .addCase(fetchAllIndicatorsForAdmin.fulfilled, (s, a) => {
-        s.allIndicators = a.payload;
-      })
-      .addCase(fetchSubmittedIndicators.fulfilled, (s, a) => {
-        s.submittedIndicators = a.payload;
       })
       .addCase(deleteIndicator.fulfilled, (s, a) => {
         s.userIndicators = s.userIndicators.filter((i) => i._id !== a.payload);
@@ -395,7 +471,44 @@ const indicatorSlice = createSlice({
         );
       })
 
-      /* ----------------- Generic Loading/Error ----------------- */
+      /* ---------------- Approval / Rejection ---------------- */
+      .addCase(approveIndicator.fulfilled, (s, a) => {
+        s.userIndicators = updateList(s.userIndicators, a.payload);
+        s.allIndicators = updateList(s.allIndicators, a.payload);
+        s.submittedIndicators = updateList(s.submittedIndicators, a.payload);
+        s.successMessage = `"${a.payload.indicatorTitle}" approved successfully`;
+      })
+      .addCase(rejectIndicator.fulfilled, (state, action) => {
+  state.userIndicators = updateList(state.userIndicators, action.payload);
+  state.allIndicators = updateList(state.allIndicators, action.payload);
+  state.submittedIndicators = updateList(state.submittedIndicators, action.payload);
+  state.successMessage = `"${action.payload.indicatorTitle}" rejected successfully`;
+})
+.addCase(rejectIndicator.rejected, (state, action) => {
+  state.error = action.payload ?? "Rejection failed";
+})
+
+
+      /* ---------------- Fetching ---------------- */
+      .addCase(fetchUserIndicators.fulfilled, (s, a) => {
+        s.userIndicators = a.payload;
+      })
+      .addCase(fetchAllIndicatorsForAdmin.fulfilled, (s, a) => {
+        s.allIndicators = a.payload;
+      })
+      .addCase(fetchSubmittedIndicators.fulfilled, (s, a) => {
+        s.submittedIndicators = a.payload;
+      })
+
+      /* ---------------- Progress Update ---------------- */
+      .addCase(updateIndicatorProgress.fulfilled, (s, a) => {
+        s.userIndicators = updateList(s.userIndicators, a.payload);
+        s.allIndicators = updateList(s.allIndicators, a.payload);
+        s.submittedIndicators = updateList(s.submittedIndicators, a.payload);
+        s.successMessage = "Progress updated successfully";
+      })
+
+      /* ---------------- Generic Loading/Error ---------------- */
       .addMatcher(
         (a) => a.type.startsWith("indicators/") && a.type.endsWith("/pending"),
         (s) => {
@@ -434,4 +547,5 @@ export const selectSubmittingEvidence = (s: RootState) =>
 export const selectIndicatorsError = (s: RootState) => s.indicators.error;
 
 export const { clearMessages } = indicatorSlice.actions;
+
 export default indicatorSlice.reducer;

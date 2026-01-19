@@ -6,19 +6,18 @@ import {
   selectAllIndicators,
   selectIndicatorsLoading,
   updateIndicator,
+  downloadEvidence,
   type IIndicator,
 } from "../../store/slices/indicatorsSlice";
 import {
   Loader2,
-  Eye,
   ShieldCheck,
   CheckCircle2,
-  XCircle,
   Gavel,
-  Calendar,
-  Users,
   X,
   ArrowRight,
+  Download,
+  FileText,
 } from "lucide-react";
 import toast from "react-hot-toast";
 
@@ -29,19 +28,25 @@ interface Props {
 
 const SuperAdminApprovedModal: React.FC<Props> = ({ isOpen, onClose }) => {
   const dispatch = useAppDispatch();
+
   const indicators = useAppSelector(selectAllIndicators);
   const loading = useAppSelector(selectIndicatorsLoading);
+
   const [processingId, setProcessingId] = useState<string | null>(null);
+  const [downloadingId, setDownloadingId] = useState<string | null>(null);
 
   useEffect(() => {
-    if (isOpen) dispatch(fetchAllIndicatorsForAdmin());
+    if (isOpen) {
+      dispatch(fetchAllIndicatorsForAdmin());
+    }
   }, [dispatch, isOpen]);
 
-  // Only show indicators that are approved or already completed
   const pendingRatification = useMemo(
     () =>
       indicators.filter(
-        (i) => i.status === "approved" || i.status === "completed"
+        (indicator) =>
+          indicator.status === "approved" ||
+          indicator.status === "completed"
       ),
     [indicators]
   );
@@ -49,26 +54,38 @@ const SuperAdminApprovedModal: React.FC<Props> = ({ isOpen, onClose }) => {
   const isCompleted = (indicator: IIndicator) =>
     indicator.status === "completed";
 
-  const handleReview = async (indicator: IIndicator, approve: boolean) => {
+  const handleDownload = async (
+    indicatorId: string,
+    publicId: string,
+    fileName: string
+  ) => {
+    try {
+      setDownloadingId(publicId);
+      await dispatch(
+        downloadEvidence({ indicatorId, publicId, fileName })
+      ).unwrap();
+      toast.success("Download started");
+    } catch {
+      toast.error("Download failed");
+    } finally {
+      setDownloadingId(null);
+    }
+  };
+
+  const handleRatify = async (indicator: IIndicator) => {
+    if (isCompleted(indicator)) return;
+
     try {
       setProcessingId(indicator._id);
+      await dispatch(
+        updateIndicator({
+          id: indicator._id,
+          updates: { status: "completed" },
+        })
+      ).unwrap();
 
-      if (!isCompleted(indicator)) {
-        await dispatch(
-          updateIndicator({
-            id: indicator._id,
-            updates: { status: approve ? "completed" : "approved" },
-          })
-        ).unwrap();
-
-        toast.success(
-          approve
-            ? "Protocol Ratified & Locked"
-            : "Returned to Department Review"
-        );
-
-        dispatch(fetchAllIndicatorsForAdmin());
-      }
+      toast.success("Protocol Ratified & Locked");
+      dispatch(fetchAllIndicatorsForAdmin());
     } catch {
       toast.error("Registry Sync Failure");
     } finally {
@@ -86,7 +103,7 @@ const SuperAdminApprovedModal: React.FC<Props> = ({ isOpen, onClose }) => {
         onClick={onClose}
       />
 
-      {/* Modal Container */}
+      {/* Modal */}
       <div className="relative bg-white w-full max-w-6xl h-full max-h-[90vh] rounded-[2rem] shadow-2xl flex flex-col overflow-hidden animate-in zoom-in-95 duration-300">
         {/* Header */}
         <header className="shrink-0 px-8 py-6 border-b border-slate-100 bg-white flex items-center justify-between">
@@ -96,31 +113,21 @@ const SuperAdminApprovedModal: React.FC<Props> = ({ isOpen, onClose }) => {
             </div>
             <div>
               <div className="flex items-center gap-2 text-[#c2a336] font-black uppercase tracking-[0.2em] text-[9px]">
-                <Gavel size={12} /> SuperAdmin Authority
+                <Gavel size={12} />
+                SuperAdmin Authority
               </div>
               <h3 className="text-2xl font-black text-[#1a3a32] tracking-tighter">
-                Final Ratification{" "}
-                <span className="text-slate-300 font-light ml-2">Registry</span>
+                Final Ratification
               </h3>
             </div>
           </div>
 
-          <div className="flex items-center gap-3">
-            <div className="hidden md:flex flex-col items-end mr-4">
-              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
-                Verification Queue
-              </span>
-              <span className="text-sm font-black text-[#1a3a32]">
-                {pendingRatification.length} Indicators
-              </span>
-            </div>
-            <button
-              onClick={onClose}
-              className="p-3 hover:bg-slate-100 rounded-full text-slate-400 transition-colors"
-            >
-              <X size={24} />
-            </button>
-          </div>
+          <button
+            onClick={onClose}
+            className="p-3 hover:bg-slate-100 rounded-full text-slate-400 transition-colors"
+          >
+            <X size={24} />
+          </button>
         </header>
 
         {/* Content */}
@@ -128,165 +135,96 @@ const SuperAdminApprovedModal: React.FC<Props> = ({ isOpen, onClose }) => {
           {loading ? (
             <div className="flex flex-col items-center justify-center h-64">
               <Loader2 className="w-10 h-10 animate-spin text-[#c2a336] mb-4" />
-              <p className="text-[10px] font-black text-[#1a3a32] uppercase tracking-[0.3em]">
+              <p className="text-[10px] font-black uppercase tracking-widest">
                 Querying Master Registry...
               </p>
             </div>
-          ) : !pendingRatification.length ? (
-            <div className="bg-white rounded-[2rem] border border-dashed border-slate-200 p-16 text-center">
-              <div className="w-20 h-20 bg-emerald-50 text-emerald-500 rounded-full flex items-center justify-center mx-auto mb-6">
-                <CheckCircle2 size={40} />
-              </div>
-              <h4 className="text-xl font-black text-[#1a3a32] mb-2">
-                Everything Verified
-              </h4>
-              <p className="text-sm text-slate-500 italic max-w-xs mx-auto">
-                No pending indicators require final ratification at this time.
-              </p>
-            </div>
           ) : (
-            <div className="grid grid-cols-1 gap-4">
+            <div className="grid grid-cols-1 gap-6">
               {pendingRatification.map((indicator) => (
                 <div
                   key={indicator._id}
-                  className={`bg-white rounded-3xl p-6 border border-slate-100 shadow-sm hover:shadow-md transition-shadow group relative overflow-hidden`}
+                  className="relative bg-white rounded-3xl p-6 border border-slate-100 shadow-sm hover:shadow-md transition-shadow overflow-hidden"
                 >
-                  {/* Completed Badge */}
                   {isCompleted(indicator) && (
-                    <span className="absolute top-3 right-3 bg-emerald-500 text-white text-[9px] font-black px-2 py-1 rounded-full uppercase tracking-widest">
+                    <span className="absolute top-4 right-4 bg-emerald-500 text-white text-[9px] font-black px-2 py-1 rounded-full uppercase">
                       Completed
                     </span>
                   )}
 
-                  <div className="flex flex-col lg:flex-row lg:items-center gap-6 relative">
-                    <div className="absolute left-0 top-0 bottom-0 w-1.5 bg-[#c2a336]/20 group-hover:bg-[#c2a336] transition-colors" />
-
-                    {/* Main Info */}
+                  <div className="flex flex-col lg:flex-row gap-6">
+                    {/* Indicator Info */}
                     <div className="flex-1">
                       <div className="flex items-center gap-2 mb-2">
-                        <span
-                          className="px-2 py-0.5 text-[9px] font-black rounded uppercase tracking-tighter"
-                          style={{
-                            backgroundColor: "#16a34a15",
-                            color: "#16a34a",
-                          }}
-                        >
-                          Dept Approved
+                        <span className="px-2 py-0.5 text-[9px] font-black rounded uppercase bg-emerald-50 text-emerald-600">
+                          Submission Approved
                         </span>
-                        <span className="text-slate-300">•</span>
                         <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
                           {indicator.unitOfMeasure}
                         </span>
                       </div>
 
-                      <h4 className="text-lg font-black text-[#1a3a32] leading-tight mb-2">
+                      <h4 className="text-lg font-black text-[#1a3a32] mb-4">
                         {indicator.indicatorTitle}
                       </h4>
 
-                      {/* Audit Info */}
-                      <div className="flex flex-wrap gap-4 mb-3 text-[11px] text-slate-500 font-bold">
-                        <div className="flex items-center gap-1">
-                          <Calendar size={14} className="text-slate-400" />
-                          Submitted:{" "}
-                          {new Date(indicator.createdAt).toLocaleDateString(
-                            "en-GB"
-                          )}
-                        </div>
+                      {/* Evidence */}
+                      <div className="bg-slate-50/80 rounded-2xl p-4 border border-slate-100">
+                        <p className="text-[9px] font-black text-[#c2a336] uppercase tracking-widest mb-3 flex items-center gap-2">
+                          <FileText size={12} />
+                          Verified Evidence ({indicator.evidence.length})
+                        </p>
 
-                        {indicator.reviewedAt && (
-                          <div className="flex items-center gap-1 text-emerald-600">
-                            <Calendar size={14} />
-                            Approved:{" "}
-                            <span className="font-black">
-                              {new Date(indicator.reviewedAt).toLocaleString(
-                                "en-GB",
-                                {
-                                  day: "2-digit",
-                                  month: "short",
-                                  year: "numeric",
-                                  hour: "2-digit",
-                                  minute: "2-digit",
+                        <div className="flex flex-wrap gap-2">
+                          {indicator.evidence.length > 0 ? (
+                            indicator.evidence.map((file) => (
+                              <button
+                                key={file.publicId}
+                                onClick={() =>
+                                  handleDownload(
+                                    indicator._id,
+                                    file.publicId,
+                                    file.fileName
+                                  )
                                 }
-                              )}
+                                className="flex items-center gap-2 px-3 py-1.5 bg-white border border-slate-200 rounded-xl text-[10px] font-bold text-slate-600 hover:border-[#c2a336] hover:text-[#c2a336] transition-all"
+                              >
+                                {downloadingId === file.publicId ? (
+                                  <Loader2
+                                    size={12}
+                                    className="animate-spin"
+                                  />
+                                ) : (
+                                  <Download size={12} />
+                                )}
+                                <span className="max-w-[120px] truncate">
+                                  {file.fileName}
+                                </span>
+                              </button>
+                            ))
+                          ) : (
+                            <span className="text-[10px] italic text-slate-400">
+                              No exhibits filed
                             </span>
-                            {indicator.reviewedBy &&
-                              ` by ${indicator.reviewedBy.name || "Unknown"}`}
-                          </div>
-                        )}
-                      </div>
-
-                      <div className="flex flex-wrap gap-4">
-                        <div className="flex items-center gap-2 text-[11px] font-bold text-slate-500">
-                          <Users size={14} className="text-[#c2a336]" />
-                          {indicator.assignedToType === "individual"
-                            ? indicator.assignedTo
-                            : "Departmental Group"}
-                        </div>
-                        <div className="flex items-center gap-2 text-[11px] font-bold text-slate-500">
-                          <Calendar size={14} className="text-slate-400" />
-                          Due:{" "}
-                          {new Date(indicator.dueDate).toLocaleDateString(
-                            "en-GB"
                           )}
                         </div>
                       </div>
                     </div>
 
-                    {/* Meta */}
-                    <div className="hidden xl:block w-64 border-l border-slate-50 px-6">
-                      <p className="text-[9px] font-black text-slate-300 uppercase mb-1">
-                        Architecture
-                      </p>
-                      <p className="text-[11px] font-bold text-slate-600 truncate">
-                        {indicator.category?.title}
-                      </p>
-                      <p className="text-[10px] font-medium text-slate-400 italic truncate">
-                        {indicator.level2Category?.title}
-                      </p>
-                    </div>
-
-                    {/* Actions */}
-                    <div className="flex items-center gap-2 shrink-0">
-                      <button
-                        onClick={() =>
-                          window.open(`/indicators/${indicator._id}`, "_blank")
-                        }
-                        className="p-3 text-slate-400 hover:text-[#1a3a32] hover:bg-slate-100 rounded-2xl transition-all"
-                        title="Audit Dossier"
-                      >
-                        <Eye size={20} />
-                      </button>
-                      <div className="h-8 w-[1px] bg-slate-100 mx-2 hidden lg:block" />
+                    {/* Action */}
+                    <div className="flex items-center shrink-0 self-end lg:self-center">
                       <button
                         disabled={!!processingId || isCompleted(indicator)}
-                        onClick={() => handleReview(indicator, false)}
-                        className={`px-5 py-3 rounded-2xl text-[11px] font-black uppercase text-rose-600 bg-rose-50 hover:bg-rose-600 hover:text-white transition-all border border-rose-100 flex items-center gap-2 ${
-                          isCompleted(indicator)
-                            ? "opacity-50 cursor-not-allowed hover:bg-rose-50 hover:text-rose-600"
-                            : ""
-                        }`}
-                      >
-                        <XCircle size={16} /> Reject
-                      </button>
-                      <button
-                        disabled={!!processingId || isCompleted(indicator)}
-                        onClick={() => handleReview(indicator, true)}
-                        className={`px-6 py-3 rounded-2xl text-[11px] font-black uppercase text-white bg-[#1a3a32] hover:bg-[#c2a336] shadow-lg shadow-[#1a3a32]/20 transition-all flex items-center gap-2 ${
-                          isCompleted(indicator)
-                            ? "opacity-50 cursor-not-allowed hover:bg-[#1a3a32]"
-                            : ""
-                        }`}
+                        onClick={() => handleRatify(indicator)}
+                        className="px-6 py-3 rounded-2xl text-[11px] font-black uppercase text-white bg-[#1a3a32] hover:bg-[#c2a336] shadow-lg transition-all flex items-center gap-2 disabled:opacity-30 disabled:cursor-not-allowed"
                       >
                         {processingId === indicator._id ? (
                           <Loader2 size={16} className="animate-spin" />
                         ) : (
                           <CheckCircle2 size={16} />
                         )}
-                        Ratify{" "}
-                        <ArrowRight
-                          size={14}
-                          className="group-hover:translate-x-1 transition-transform"
-                        />
+                        {isCompleted(indicator) ? "Ratified" : "Ratify"}
+                        <ArrowRight size={14} />
                       </button>
                     </div>
                   </div>
@@ -295,22 +233,6 @@ const SuperAdminApprovedModal: React.FC<Props> = ({ isOpen, onClose }) => {
             </div>
           )}
         </div>
-
-        {/* Footer */}
-        <footer className="shrink-0 px-8 py-4 bg-white border-t border-slate-100 flex justify-between items-center">
-          <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest italic">
-            Secure SuperAdmin Session • {new Date().toLocaleDateString("en-GB")}
-          </p>
-          <div className="flex items-center gap-4 text-[10px] font-black text-slate-500 uppercase">
-            <div className="flex items-center gap-1.5">
-              <div className="w-2 h-2 rounded-full bg-emerald-500" />{" "}
-              Operational
-            </div>
-            <div className="flex items-center gap-1.5">
-              <div className="w-2 h-2 rounded-full bg-[#c2a336]" /> Encrypted
-            </div>
-          </div>
-        </footer>
       </div>
     </div>
   );

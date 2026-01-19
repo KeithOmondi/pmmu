@@ -6,56 +6,23 @@ import {
   selectAllIndicators,
   selectIndicatorsLoading,
 } from "../../store/slices/indicatorsSlice";
-import {
-  fetchCategories,
-  selectAllCategories,
-} from "../../store/slices/categoriesSlice";
+import { fetchCategories } from "../../store/slices/categoriesSlice";
 import { fetchUsers } from "../../store/slices/userSlice";
-import {
-  Loader2,
-  Calendar,
-  Clock,
-  AlertCircle,
-  CheckCircle2,
-  Timer,
-  LayoutDashboard,
-  CheckCheck,
-} from "lucide-react";
+import { Loader2, LayoutDashboard, ShieldCheck, Clock } from "lucide-react";
 
-import {
-  PieChart,
-  Pie,
-  Cell,
-  Tooltip,
-  ResponsiveContainer,
-  BarChart,
-  Bar,
-  XAxis,
-  YAxis,
-  Legend,
-  CartesianGrid,
-} from "recharts";
-
-const BRAND = {
-  green: "#1a3a32",
-  gold: "#c2a336",
-  slate: "#8c94a4",
-  lightGold: "#f4f0e6",
-};
-
-const STATUS_COLORS: Record<string, string> = {
-  pending: BRAND.gold,
-  approved: BRAND.green,
-  completed: "#16a34a",
-  rejected: "#ef4444",
-  overdue: "#991b1b",
+// Simplified status labels for the UI
+const STATUS_LABELS: Record<string, string> = {
+  pending: "Not Started",
+  submitted: "Under Review",
+  approved: "Waiting for Final Seal",
+  completed: "Finished & Locked",
+  rejected: "Returned",
 };
 
 const SuperAdminDashboard: React.FC = () => {
   const dispatch = useAppDispatch();
   const indicators = useAppSelector(selectAllIndicators);
   const indicatorsLoading = useAppSelector(selectIndicatorsLoading);
-  const categories = useAppSelector(selectAllCategories);
 
   useEffect(() => {
     dispatch(fetchAllIndicatorsForAdmin());
@@ -65,303 +32,187 @@ const SuperAdminDashboard: React.FC = () => {
 
   const now = Date.now();
 
-  // --- Metrics Logic ---
   const metrics = useMemo(() => {
     const upcoming = indicators.filter(
       (i) => new Date(i.startDate).getTime() > now
     );
 
-    const ongoing = indicators.filter(
+    // Combined Ongoing and Pending into "Work in Progress"
+    const inProgress = indicators.filter(
       (i) =>
         new Date(i.startDate).getTime() <= now &&
         new Date(i.dueDate).getTime() >= now &&
         !["completed", "approved", "rejected"].includes(i.status)
     );
 
-    const pending = indicators.filter((i) => i.status === "pending");
-    const approved = indicators.filter((i) => i.status === "approved");
-    const completed = indicators.filter((i) => i.status === "completed");
-
-    const overdue = indicators.filter(
+    const readyForSeal = indicators.filter((i) => i.status === "approved");
+    const finalized = indicators.filter((i) => i.status === "completed");
+    const late = indicators.filter(
       (i) =>
-        !["approved", "completed", "rejected"].includes(i.status) &&
+        !["completed", "rejected"].includes(i.status) &&
         new Date(i.dueDate).getTime() < now
     );
 
-    return { upcoming, ongoing, pending, approved, completed, overdue };
+    return { upcoming, inProgress, readyForSeal, finalized, late };
   }, [indicators, now]);
-
-  // --- Pie Chart Data ---
-  const statusData = useMemo(() => {
-    const counts: Record<string, number> = {
-      pending: 0,
-      approved: 0,
-      completed: 0,
-      rejected: 0,
-      overdue: 0,
-    };
-
-    indicators.forEach((i) => {
-      if (["approved", "completed", "rejected"].includes(i.status)) {
-        counts[i.status] = (counts[i.status] || 0) + 1;
-      } else {
-        const isOverdue = new Date(i.dueDate).getTime() < now;
-        if (isOverdue) counts.overdue += 1;
-        else counts[i.status] = (counts[i.status] || 0) + 1;
-      }
-    });
-
-    return Object.keys(counts).map((key) => ({
-      name: key.toUpperCase(),
-      value: counts[key],
-      color: STATUS_COLORS[key],
-    }));
-  }, [indicators, now]);
-
-  // --- Bar Chart Data ---
-  const barData = useMemo(() => {
-    return categories.map((cat) => ({
-      name:
-        cat.title.length > 10 ? cat.title.substring(0, 10) + ".." : cat.title,
-      count: indicators.filter((i) => i.category?._id === cat._id).length,
-    }));
-  }, [categories, indicators]);
 
   if (indicatorsLoading) {
     return (
-      <div className="flex flex-col justify-center items-center h-screen bg-white">
-        <Loader2 className="w-10 h-10 animate-spin text-[#1a3a32] mb-4" />
-        <p className="text-[#8c94a4] font-medium tracking-widest uppercase text-[10px]">
-          Loading Judiciary Analytics
+      <div className="flex flex-col items-center justify-center h-screen bg-white">
+        <Loader2 className="w-9 h-9 animate-spin text-[#1a3a32] mb-3" />
+        <p className="text-xs font-bold uppercase text-[#8c94a4]">
+          Loading Court Records...
         </p>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen p-4 sm:p-6 lg:p-10 bg-[#f8f9fa] space-y-6 lg:space-y-8">
-      {/* Header */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between border-b border-gray-200 pb-6 gap-4">
-        <div>
-          <h1 className="text-2xl sm:text-3xl font-bold text-[#1a3a32] tracking-tight flex items-center gap-3">
-            <LayoutDashboard className="w-6 h-6 sm:w-8 sm:h-8 text-[#c2a336]" />
-            Dashboard
-          </h1>
-          <p className="text-[#8c94a4] mt-1 font-medium text-xs sm:text-sm">
-            High Court of Kenya | Analytics
-          </p>
-        </div>
-        <div className="bg-white px-4 py-2 rounded-xl border border-gray-100 shadow-sm self-start md:self-center">
-          <p className="text-[10px] font-bold text-[#1a3a32] uppercase tracking-tighter opacity-60">
-            Current Session
-          </p>
-          <p className="text-sm text-[#c2a336] font-semibold">
-            {new Date().toLocaleDateString("en-GB", {
-              day: "numeric",
-              month: "short",
-              year: "numeric",
-            })}
-          </p>
-        </div>
-      </div>
+    <div className="min-h-screen bg-[#f8f9fa] px-4 py-6 md:px-10">
+      <div className="max-w-7xl mx-auto space-y-6">
+        {/* Header */}
+        <header className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-gray-200 pb-6">
+          <div>
+            <h1 className="text-2xl font-black text-gray-900 flex items-center gap-2">
+              <LayoutDashboard className="text-[#1a3a32]" size={24} />
+              OFFICE OF THE REGISTRAR HIGH COURT
+            </h1>
+            <p className="text-sm text-gray-500 font-medium">
+              Overal Monitoring Dashboard
+            </p>
+          </div>
+          <div className="flex items-center gap-2 bg-white px-4 py-2 rounded-full border border-gray-200 shadow-sm">
+            <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+            <span className="text-[10px] font-black uppercase tracking-wider text-gray-600">
+              System Live
+            </span>
+          </div>
+        </header>
 
-      {/* Metric Cards */}
-      <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-6 gap-3 sm:gap-4">
-        <StatCard
-          title="Upcoming"
-          value={metrics.upcoming.length}
-          icon={<Calendar size={18} />}
-          color={BRAND.slate}
-        />
-        <StatCard
-          title="Ongoing"
-          value={metrics.ongoing.length}
-          icon={<Timer size={18} />}
-          color="#3b82f6"
-        />
-        <StatCard
-          title="Pending"
-          value={metrics.pending.length}
-          icon={<Clock size={18} />}
-          color={BRAND.gold}
-        />
-        <StatCard
-          title="Approved"
-          value={metrics.approved.length}
-          icon={<CheckCircle2 size={18} />}
-          color={BRAND.green}
-        />
-        <StatCard
-          title="Completed"
-          value={metrics.completed.length}
-          icon={<CheckCheck size={18} />}
-          color="#16a34a"
-        />
-        <StatCard
-          title="Overdue"
-          value={metrics.overdue.length}
-          icon={<AlertCircle size={18} />}
-          color="#991b1b"
-        />
-      </div>
+        {/* Simple Notice */}
+        <div className="bg-[#1a3a32] rounded-2xl p-4 flex items-start gap-4 text-white shadow-lg shadow-[#1a3a32]/10">
+          <div className="bg-[#c2a336] p-2 rounded-lg">
+            <ShieldCheck size={20} />
+          </div>
+          <div>
+            <h4 className="font-bold text-sm">Action Required</h4>
+            <p className="text-xs text-gray-300">
+              There are{" "}
+              <span className="text-[#c2a336] font-bold">
+                {metrics.readyForSeal.length} items
+              </span>{" "}
+              waiting for your final approval. Once you approve them, they are
+              locked and recorded as completed.
+            </p>
+          </div>
+        </div>
 
-      {/* Charts */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 lg:gap-8">
-        {/* Status Pie Chart */}
-        <div className="bg-white rounded-2xl p-5 sm:p-6 shadow-sm border border-gray-100">
-          <h2 className="text-md sm:text-lg font-bold text-[#1a3a32] mb-6 border-l-4 border-[#c2a336] pl-3">
-            Status
-          </h2>
-          <div className="h-[250px] sm:h-[300px]">
-            <ResponsiveContainer width="100%" height="100%">
-              <PieChart>
-                <Pie
-                  data={statusData}
-                  dataKey="value"
-                  innerRadius="60%"
-                  outerRadius="80%"
-                  paddingAngle={5}
-                >
-                  {statusData.map((entry, index) => (
-                    <Cell key={`cell-${index}`} fill={entry.color} />
+        {/* 3 Clear Metric Blocks */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+          {/* Active Work */}
+          <div className="bg-white p-6 rounded-[2rem] border border-gray-100 shadow-sm">
+            <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1">
+              Active Work
+            </p>
+            <h3 className="text-3xl font-black text-gray-900">
+              {metrics.inProgress.length}
+            </h3>
+            <p className="text-xs text-gray-500 mt-2">
+              Tasks currently being worked on.
+            </p>
+          </div>
+
+          {/* Needing Your Seal */}
+          <div className="bg-white p-6 rounded-[2rem] border-2 border-[#c2a336] shadow-sm relative overflow-hidden">
+            <div className="absolute top-0 right-0 p-4 opacity-10">
+              <Clock size={40} />
+            </div>
+            <p className="text-[10px] font-black text-[#c2a336] uppercase tracking-widest mb-1">
+              Needs Your Approval
+            </p>
+            <h3 className="text-3xl font-black text-[#1a3a32]">
+              {metrics.readyForSeal.length}
+            </h3>
+            <p className="text-xs text-gray-600 mt-2 font-medium">
+              Tasks reviewed and ready for final approval.
+            </p>
+          </div>
+
+          {/* Finished */}
+          <div className="bg-white p-6 rounded-[2rem] border border-gray-100 shadow-sm">
+            <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1">
+              Completed
+            </p>
+            <h3 className="text-3xl font-black text-emerald-600">
+              {metrics.finalized.length}
+            </h3>
+            <p className="text-xs text-gray-500 mt-2">
+              Tasks completed and locked in the registry.
+            </p>
+          </div>
+        </div>
+
+        {/* Simple Table */}
+        <div className="bg-white rounded-[2rem] border border-gray-100 overflow-hidden shadow-sm">
+          <div className="px-8 py-5 border-b border-gray-50 bg-gray-50/50">
+            <h2 className="text-sm font-black text-[#1a3a32] uppercase">
+              Recent Activity
+            </h2>
+          </div>
+          <div className="overflow-x-auto">
+            <table className="w-full text-left">
+              <thead>
+                <tr className="text-[10px] font-black text-gray-400 uppercase tracking-widest border-b border-gray-50">
+                  <th className="px-8 py-4">Task Name</th>
+                  <th className="px-8 py-4">Current Status</th>
+                  <th className="px-8 py-4 text-right">Deadline</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-50">
+                {[...metrics.readyForSeal, ...metrics.inProgress]
+                  .slice(0, 5)
+                  .map((i) => (
+                    <tr
+                      key={i._id}
+                      className="group hover:bg-gray-50/50 transition-colors"
+                    >
+                      <td className="px-8 py-5">
+                        <p className="text-sm font-bold text-gray-800">
+                          {i.indicatorTitle}
+                        </p>
+                        <p className="text-[10px] text-gray-400 uppercase font-medium">
+                          {i.category?.title || "General"}
+                        </p>
+                      </td>
+                      <td className="px-8 py-5">
+                        <span
+                          className={`text-[10px] font-black uppercase px-3 py-1 rounded-full border ${
+                            i.status === "approved"
+                              ? "bg-amber-50 text-amber-600 border-amber-100"
+                              : "bg-gray-50 text-gray-500 border-gray-100"
+                          }`}
+                        >
+                          {STATUS_LABELS[i.status] || i.status}
+                        </span>
+                      </td>
+                      <td className="px-8 py-5 text-right">
+                        <p className="text-xs font-bold text-gray-500">
+                          {new Date(i.dueDate).toLocaleDateString("en-GB", {
+                            day: "2-digit",
+                            month: "short",
+                            year: "numeric",
+                          })}
+                        </p>
+                      </td>
+                    </tr>
                   ))}
-                </Pie>
-                <Tooltip />
-                <Legend iconType="circle" wrapperStyle={{ fontSize: "12px" }} />
-              </PieChart>
-            </ResponsiveContainer>
+              </tbody>
+            </table>
           </div>
-        </div>
-
-        {/* Category Volume Bar Chart */}
-        <div className="bg-white rounded-2xl p-5 sm:p-6 shadow-sm border border-gray-100 lg:col-span-2">
-          <h2 className="text-md sm:text-lg font-bold text-[#1a3a32] mb-6 border-l-4 border-[#c2a336] pl-3">
-            Category Volume
-          </h2>
-          <div className="h-[250px] sm:h-[300px]">
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={barData}>
-                <CartesianGrid
-                  strokeDasharray="3 3"
-                  vertical={false}
-                  stroke="#f0f0f0"
-                />
-                <XAxis
-                  dataKey="name"
-                  axisLine={false}
-                  tickLine={false}
-                  tick={{ fill: "#8c94a4", fontSize: 10 }}
-                />
-                <YAxis
-                  axisLine={false}
-                  tickLine={false}
-                  tick={{ fill: "#8c94a4", fontSize: 10 }}
-                />
-                <Tooltip cursor={{ fill: "#f8f9fa" }} />
-                <Bar
-                  dataKey="count"
-                  fill={BRAND.green}
-                  radius={[4, 4, 0, 0]}
-                  barSize={30}
-                />
-              </BarChart>
-            </ResponsiveContainer>
-          </div>
-        </div>
-      </div>
-
-      {/* Critical Timeline Table */}
-      <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
-        <div className="p-5 sm:p-6 border-b border-gray-50 flex justify-between items-center">
-          <h2 className="text-md sm:text-lg font-bold text-[#1a3a32]">
-            Critical Timeline View
-          </h2>
-          <span className="text-[10px] bg-[#f4f0e6] text-[#c2a336] px-2 py-1 rounded-md font-bold uppercase">
-            Live Tracking
-          </span>
-        </div>
-
-        {/* Desktop Table */}
-        <div className="hidden md:block overflow-x-auto">
-          <table className="min-w-full text-sm">
-            <thead>
-              <tr className="bg-[#fcfcfc] text-[#8c94a4] uppercase text-[10px] tracking-widest border-b border-gray-100">
-                <th className="px-6 py-4 text-left font-bold">Indicator</th>
-                <th className="px-6 py-4 text-left font-bold">Category</th>
-                <th className="px-6 py-4 text-left font-bold">Official</th>
-                <th className="px-6 py-4 text-left font-bold text-center">
-                  Status
-                </th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-100">
-              {[...metrics.upcoming, ...metrics.ongoing]
-                .slice(0, 6)
-                .map((i) => (
-                  <tr
-                    key={i._id}
-                    className="hover:bg-gray-50 transition-colors"
-                  >
-                    <td className="px-6 py-4 font-semibold text-[#1a3a32]">
-                      {i.indicatorTitle}
-                    </td>
-                    <td className="px-6 py-4 text-gray-500 text-xs">
-                      {i.category?.title ?? "-"}
-                    </td>
-                    <td className="px-6 py-4">
-                      <span className="text-gray-700 text-xs font-medium">
-                        {i.assignedToType === "individual"
-                          ? "Official Assignment"
-                          : "Group Task"}
-                      </span>
-                    </td>
-                    <td className="px-6 py-4 text-center">
-                      <span
-                        className={`px-3 py-1 rounded-full text-[10px] font-bold uppercase border`}
-                        style={{
-                          backgroundColor: STATUS_COLORS[i.status] + "15",
-                          borderColor: STATUS_COLORS[i.status],
-                          color: STATUS_COLORS[i.status],
-                        }}
-                      >
-                        {i.status.toUpperCase()}
-                      </span>
-                    </td>
-                  </tr>
-                ))}
-            </tbody>
-          </table>
         </div>
       </div>
     </div>
   );
 };
-
-const StatCard = ({
-  title,
-  value,
-  icon,
-  color,
-}: {
-  title: string;
-  value: number;
-  icon: React.ReactNode;
-  color: string;
-}) => (
-  <div className="bg-white rounded-2xl p-4 sm:p-5 border border-gray-100 shadow-sm flex flex-col sm:flex-row items-start sm:items-center justify-between group hover:border-[#c2a336] transition-all gap-3">
-    <div className="order-2 sm:order-1">
-      <p className="text-[10px] font-bold text-[#8c94a4] uppercase tracking-widest mb-1">
-        {title}
-      </p>
-      <p className="text-xl sm:text-2xl font-black text-[#1a3a32]">{value}</p>
-    </div>
-    <div
-      className="order-1 sm:order-2 p-2.5 rounded-xl transition-colors self-end sm:self-center"
-      style={{ backgroundColor: `${color}15`, color: color }}
-    >
-      {icon}
-    </div>
-  </div>
-);
 
 export default SuperAdminDashboard;

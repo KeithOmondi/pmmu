@@ -1,7 +1,7 @@
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { useEffect } from "react";
 import { useAppSelector, useAppDispatch } from "./store/hooks";
-import { refreshUser, setAuthenticated } from "./store/slices/authSlice";
+import { refreshUser } from "./store/slices/authSlice";
 
 // Pages
 import Login from "./pages/Login";
@@ -54,8 +54,7 @@ const App = () => {
     const token = localStorage.getItem("accessToken");
 
     if (token && !isAuthenticated) {
-      dispatch(setAuthenticated());
-      dispatch(refreshUser());
+            dispatch(refreshUser());
     }
   }, [dispatch, isAuthenticated]);
 

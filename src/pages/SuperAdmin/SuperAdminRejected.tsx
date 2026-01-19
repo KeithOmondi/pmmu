@@ -10,6 +10,7 @@ import {
   selectAllIndicators,
   selectIndicatorsLoading,
   type IIndicator,
+  type INote,
 } from "../../store/slices/indicatorsSlice";
 import {
   Loader2,
@@ -22,10 +23,12 @@ import {
   FileText,
   MessageSquare,
   Calendar,
+  Clock,
 } from "lucide-react";
 
 const SuperAdminRejected: React.FC = () => {
   const dispatch = useAppDispatch();
+
   const indicators = useAppSelector(selectAllIndicators);
   const loading = useAppSelector(selectIndicatorsLoading);
   const allUsers = useAppSelector(selectAllUsers) as IUser[];
@@ -44,11 +47,19 @@ const SuperAdminRejected: React.FC = () => {
     [indicators]
   );
 
-  // Helper to find name by ID (used for both AssignedTo and ReviewedBy)
-  const getNameFromId = (id: string | null) => {
-    if (!id) return "System/Unknown";
-    const found = allUsers.find((u) => u._id === id);
-    return found ? found.name : `ID: ${id.substring(0, 5)}...`;
+  const getNameFromId = (input: any): string => {
+    if (!input) return "System/Unknown";
+
+    if (typeof input === "object" && input.name) return input.name;
+
+    const idToLookup = typeof input === "string" ? input : input._id;
+    if (idToLookup) {
+      const found = allUsers.find((u) => u._id === idToLookup);
+      if (found) return found.name;
+      return `User (${String(idToLookup).substring(0, 5)}...)`;
+    }
+
+    return "Unknown Entity";
   };
 
   if (loading && !indicators.length) {
@@ -98,7 +109,7 @@ const SuperAdminRejected: React.FC = () => {
         </div>
       ) : (
         <div className="grid grid-cols-1 gap-4">
-          {rejectedIndicators.map((i) => (
+          {rejectedIndicators.map((i: IIndicator) => (
             <div
               key={i._id}
               className="bg-white rounded-2xl p-5 border border-gray-100 shadow-sm flex flex-col md:flex-row items-center justify-between gap-4 group hover:border-rose-200 transition-all"
@@ -139,7 +150,7 @@ const SuperAdminRejected: React.FC = () => {
         <RejectionModal
           indicator={selectedIndicator}
           onClose={() => setSelectedIndicator(null)}
-          reviewerName={getNameFromId(selectedIndicator.reviewedBy)}
+          getNameFromId={getNameFromId}
         />
       )}
     </div>
@@ -147,116 +158,153 @@ const SuperAdminRejected: React.FC = () => {
 };
 
 /* --- REJECTION MODAL --- */
-const RejectionModal = ({ indicator, onClose, reviewerName }: any) => (
-  <div className="fixed inset-0 z-[1100] flex items-center justify-center p-4">
-    <div
-      className="absolute inset-0 bg-[#1a3a32]/60 backdrop-blur-sm animate-in fade-in"
-      onClick={onClose}
-    />
-    <div className="relative bg-white w-full max-w-xl rounded-[2.5rem] overflow-hidden shadow-2xl animate-in zoom-in-95">
-      <div className="bg-rose-600 p-8 text-white flex justify-between items-start">
-        <div>
-          <div className="flex items-center gap-2 text-rose-200 mb-1 font-black uppercase tracking-widest text-[10px]">
-            <AlertOctagon size={14} /> Rejection Report
-          </div>
-          <h3 className="text-2xl font-black leading-tight">
-            {indicator.indicatorTitle}
-          </h3>
-        </div>
-        <button
-          onClick={onClose}
-          className="p-2 hover:bg-white/10 rounded-full"
-        >
-          <X size={24} />
-        </button>
-      </div>
+interface RejectionModalProps {
+  indicator: IIndicator;
+  onClose: () => void;
+  getNameFromId: (id: any) => string;
+}
 
-      <div className="p-8 space-y-6">
-        {/* Reviewer Info */}
-        <div className="flex items-center justify-between p-4 bg-rose-50 rounded-2xl border border-rose-100">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-full bg-rose-600 flex items-center justify-center text-white">
-              <UserX size={18} />
+const RejectionModal: React.FC<RejectionModalProps> = ({
+  indicator,
+  onClose,
+  getNameFromId,
+}) => {
+  const latestNote = useMemo(() => {
+    return indicator.notes?.length > 0
+      ? indicator.notes[indicator.notes.length - 1]
+      : null;
+  }, [indicator.notes]);
+
+  return (
+    <div className="fixed inset-0 z-[1100] flex items-center justify-center p-4">
+      <div
+        className="absolute inset-0 bg-[#1a3a32]/60 backdrop-blur-sm animate-in fade-in"
+        onClick={onClose}
+      />
+      <div className="relative bg-white w-full max-w-xl rounded-[2.5rem] overflow-hidden shadow-2xl animate-in zoom-in-95">
+        <div className="bg-rose-600 p-8 text-white flex justify-between items-start">
+          <div>
+            <div className="flex items-center gap-2 text-rose-200 mb-1 font-black uppercase tracking-widest text-[10px]">
+              <AlertOctagon size={14} /> Rejection Report
             </div>
-            <div>
-              <p className="text-[10px] font-black text-rose-400 uppercase">
-                Rejected By
-              </p>
-              <p className="text-sm font-bold text-[#1a3a32]">{reviewerName}</p>
-            </div>
+            <h3 className="text-2xl font-black leading-tight">
+              {indicator.indicatorTitle}
+            </h3>
           </div>
-          <div className="text-right">
-            <p className="text-[10px] font-black text-rose-400 uppercase">
-              Review Date
-            </p>
-            <p className="text-sm font-bold text-[#1a3a32]">
-              {indicator.reviewedAt
-                ? new Date(indicator.reviewedAt).toLocaleDateString()
-                : "N/A"}
-            </p>
-          </div>
+          <button
+            onClick={onClose}
+            className="p-2 hover:bg-white/10 rounded-full transition-colors"
+          >
+            <X size={24} />
+          </button>
         </div>
 
-        {/* Notes/Reason Section */}
-        <div className="space-y-3">
-          <div className="flex items-center gap-2 text-[10px] font-black text-gray-400 uppercase tracking-widest">
-            <MessageSquare size={14} /> Official Remarks
-          </div>
-          <div className="bg-slate-50 p-6 rounded-2xl border border-slate-100 min-h-[100px]">
-            {indicator.notes && indicator.notes.length > 0 ? (
-              <div className="space-y-4">
-                {indicator.notes.map((note: any, idx: number) => (
-                  <p
-                    key={idx}
-                    className="text-sm text-gray-700 leading-relaxed italic"
-                  >
-                    "
-                    {typeof note === "string"
-                      ? note
-                      : note.text || JSON.stringify(note)}
-                    "
-                  </p>
-                ))}
+        <div className="p-8 space-y-6 max-h-[60vh] overflow-y-auto custom-scrollbar">
+          {/* Reviewer Info */}
+          <div className="flex items-center justify-between p-4 bg-rose-50 rounded-2xl border border-rose-100">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-full bg-rose-600 flex items-center justify-center text-white">
+                <UserX size={18} />
               </div>
-            ) : (
-              <p className="text-sm text-gray-400 italic">
-                No specific rejection notes were provided.
+              <div>
+                <p className="text-[10px] font-black text-rose-400 uppercase">
+                  Latest Action By
+                </p>
+                <p className="text-sm font-bold text-[#1a3a32]">
+                  {getNameFromId(latestNote?.createdBy || indicator.reviewedBy)}
+                </p>
+              </div>
+            </div>
+            <div className="text-right">
+              <p className="text-[10px] font-black text-rose-400 uppercase">
+                Review Date
               </p>
-            )}
+              <p className="text-sm font-bold text-[#1a3a32]">
+                {indicator.reviewedAt
+                  ? new Date(indicator.reviewedAt).toLocaleDateString()
+                  : "N/A"}
+              </p>
+            </div>
+          </div>
+
+          {/* Remarks History */}
+          <div className="space-y-4">
+            <div className="flex items-center gap-2 text-[10px] font-black text-gray-400 uppercase tracking-widest">
+              <MessageSquare size={14} /> Remarks History
+            </div>
+
+            <div className="space-y-4">
+              {indicator.notes?.length > 0 ? (
+                [...indicator.notes]
+                  .reverse()
+                  .map((note: INote, idx: number) => (
+                    <div
+                      key={idx}
+                      className="relative pl-6 pb-2 border-l-2 border-slate-100 last:border-0 last:pb-0"
+                    >
+                      <div className="absolute -left-[9px] top-1 w-4 h-4 rounded-full bg-white border-2 border-rose-500 shadow-sm" />
+                      <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100 group hover:border-rose-100 transition-colors">
+                        <p className="text-sm text-gray-700 leading-relaxed font-medium">
+                          "{note.text}"
+                        </p>
+                        <div className="mt-3 flex items-center justify-between gap-2 border-t border-slate-200/60 pt-2">
+                          <p className="text-[9px] font-bold text-gray-400 uppercase tracking-tight">
+                            By: {getNameFromId(note.createdBy)}
+                          </p>
+                          <div className="flex items-center gap-1 text-[9px] font-bold text-gray-400 uppercase tracking-tight">
+                            <Clock size={10} />
+                            {note.createdAt
+                              ? new Date(note.createdAt).toLocaleDateString()
+                              : "Recent"}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  ))
+              ) : (
+                <div className="bg-slate-50 p-6 rounded-2xl border border-slate-100 text-center">
+                  <p className="text-sm text-gray-400 italic">
+                    No specific remarks provided.
+                  </p>
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Metadata */}
+          <div className="grid grid-cols-2 gap-4">
+            <div className="p-4 bg-gray-50 rounded-2xl border border-gray-100">
+              <p className="text-[10px] font-black text-gray-400 uppercase flex items-center gap-1">
+                <Calendar size={10} /> Due Date
+              </p>
+              <p className="text-xs font-bold text-gray-700 mt-1">
+                {indicator.dueDate
+                  ? new Date(indicator.dueDate).toLocaleDateString()
+                  : "No Date"}
+              </p>
+            </div>
+            <div className="p-4 bg-gray-50 rounded-2xl border border-gray-100">
+              <p className="text-[10px] font-black text-gray-400 uppercase">
+                Manual Progress
+              </p>
+              <p className="text-xs font-bold text-gray-700 mt-1">
+                {indicator.progress}% complete
+              </p>
+            </div>
           </div>
         </div>
 
-        {/* Metadata */}
-        <div className="grid grid-cols-2 gap-4">
-          <div className="p-4 bg-gray-50 rounded-2xl border border-gray-100">
-            <p className="text-[10px] font-black text-gray-400 uppercase flex items-center gap-1">
-              <Calendar size={10} /> Original Due Date
-            </p>
-            <p className="text-xs font-bold text-gray-700 mt-1">
-              {new Date(indicator.dueDate).toLocaleDateString()}
-            </p>
-          </div>
-          <div className="p-4 bg-gray-50 rounded-2xl border border-gray-100">
-            <p className="text-[10px] font-black text-gray-400 uppercase">
-              Last Progress
-            </p>
-            <p className="text-xs font-bold text-gray-700 mt-1">
-              {indicator.progress}% complete
-            </p>
-          </div>
+        <div className="p-6 bg-gray-50 border-t border-gray-100 text-center">
+          <button
+            onClick={onClose}
+            className="px-8 py-3 bg-[#1a3a32] text-white rounded-xl text-[11px] font-black uppercase tracking-widest hover:bg-[#c2a336] transition-all"
+          >
+            Close Dossier
+          </button>
         </div>
-      </div>
-
-      <div className="p-6 bg-gray-50 border-t border-gray-100 text-center">
-        <button
-          onClick={onClose}
-          className="px-8 py-3 bg-[#1a3a32] text-white rounded-xl text-[11px] font-black uppercase tracking-widest hover:bg-[#c2a336] transition-all"
-        >
-          Close Dossier
-        </button>
       </div>
     </div>
-  </div>
-);
+  );
+};
 
 export default SuperAdminRejected;

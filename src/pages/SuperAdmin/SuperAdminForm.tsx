@@ -229,10 +229,10 @@ const SuperAdminForm: React.FC<SuperAdminFormProps> = ({
           </div>
           <div>
             <h2 className="text-2xl font-black text-[#1a3a32] tracking-tight">
-              {editData ? "Modify Metric" : "Initialize Metric"}
+              {editData ? "Assign" : "Task Assignment Form"}
             </h2>
             <p className="text-[10px] font-black text-[#c2a336] uppercase tracking-[0.2em]">
-              Institutional Command Center
+              .
             </p>
           </div>
         </div>
@@ -263,14 +263,14 @@ const SuperAdminForm: React.FC<SuperAdminFormProps> = ({
           </div>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <Dropdown
-              label="Main Category"
+              label="SECTIONS"
               value={form.categoryId}
               onChange={(v) => handleChange("categoryId", v)}
               options={level1Categories}
               required
             />
             <Dropdown
-              label="Subcategory (L2)"
+              label="DEPARTMENTS"
               value={form.level2CategoryId}
               onChange={(v) => handleChange("level2CategoryId", v)}
               options={level2Subs}
@@ -278,7 +278,7 @@ const SuperAdminForm: React.FC<SuperAdminFormProps> = ({
               required
             />
             <Dropdown
-              label="Indicator (L3)"
+              label="ACTIVITIES"
               value={form.indicatorId}
               onChange={(v) => handleChange("indicatorId", v)}
               options={level3Indicators}
@@ -286,7 +286,7 @@ const SuperAdminForm: React.FC<SuperAdminFormProps> = ({
               required
             />
             <Dropdown
-              label="Deep Category (L4)"
+              label="ASSIGNMENTS"
               value={form.level4CategoryId}
               onChange={(v) => handleChange("level4CategoryId", v)}
               options={level4Categories}

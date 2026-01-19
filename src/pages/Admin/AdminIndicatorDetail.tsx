@@ -1,11 +1,12 @@
 // src/pages/Admin/SubmittedIndicatorDetail.tsx
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useMemo } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { useAppDispatch, useAppSelector } from "../../store/hooks";
 import {
   fetchAllIndicatorsForAdmin,
   downloadEvidence as downloadEvidenceThunk,
   selectAllIndicators,
+  selectIndicatorsLoading,
 } from "../../store/slices/indicatorsSlice";
 import { fetchUsers, selectAllUsers } from "../../store/slices/userSlice";
 import {
@@ -18,33 +19,10 @@ import {
   Clock,
   Calendar,
   FileCheck,
+  Download,
+  ShieldCheck,
 } from "lucide-react";
-
-/* =====================================
-   TYPES
-===================================== */
-interface IEvidenceFile {
-  fileUrl: string;
-  fileName: string;
-  publicId: string;
-  fileSize?: number;
-  fileType?: string;
-}
-
-interface IIndicator {
-  _id: string;
-  indicatorTitle: string;
-  category: { _id: string; title: string } | null;
-  unitOfMeasure: string;
-  assignedToType: "individual" | "group";
-  assignedTo: string | null;
-  startDate: string;
-  dueDate: string;
-  progress: number;
-  notes: string[];
-  evidence: IEvidenceFile[];
-  status: string;
-}
+import toast from "react-hot-toast";
 
 /* =====================================
    COMPONENT
@@ -56,92 +34,81 @@ const AdminIndicatorDetail: React.FC = () => {
 
   const indicators = useAppSelector(selectAllIndicators);
   const users = useAppSelector(selectAllUsers);
+  const isLoading = useAppSelector(selectIndicatorsLoading);
 
-  const [indicator, setIndicator] = useState<IIndicator | null>(null);
   const [downloadingId, setDownloadingId] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
 
   /* =====================================
-     FETCH DATA
+      FETCH DATA
   ===================================== */
   useEffect(() => {
     dispatch(fetchAllIndicatorsForAdmin());
     dispatch(fetchUsers());
   }, [dispatch]);
 
-  useEffect(() => {
-    if (!id || !indicators.length) return;
-
-    const found = indicators.find((i) => i._id === id);
-    if (!found) {
-      setIndicator(null);
-      return;
-    }
-
-    setIndicator({
-      ...found,
-      notes: Array.isArray(found.notes)
-        ? found.notes.filter((n): n is string => typeof n === "string")
-        : [],
-    });
+  const indicator = useMemo(() => {
+    return indicators.find((i) => i._id === id) || null;
   }, [id, indicators]);
 
   /* =====================================
-     HELPERS
+      HELPERS & ACTIONS
   ===================================== */
   const getUserName = (userId: string | null) => {
-    if (!userId) return "-";
+    if (!userId) return "Unassigned";
     const user = users.find((u) => u._id === userId);
     return user?.name ?? "System Official";
   };
 
-  const downloadEvidence = async (file: IEvidenceFile) => {
-    if (!indicator || indicator.status === "approved") return; // disable downloads if approved
+  const handleDownload = async (file: {
+    publicId: string;
+    fileName: string;
+  }) => {
+    if (!id) return;
     try {
-      setError(null);
       setDownloadingId(file.publicId);
-
       await dispatch(
         downloadEvidenceThunk({
+          indicatorId: id,
           publicId: file.publicId,
           fileName: file.fileName,
         })
       ).unwrap();
+      toast.success("Download started successfully");
     } catch (err: any) {
-      console.error(err);
-      setError(err ?? "Download failed.");
+      toast.error(err || "Secure download failed.");
     } finally {
       setDownloadingId(null);
     }
   };
 
-  const handleApprove = () => {
-    // Approval logic should be integrated with a thunk if needed
-    // For now, disabled button if already approved
-    console.log("Approve clicked");
-  };
-
-  const handleReject = () => {
-    console.log("Reject clicked");
-  };
-
   /* =====================================
-     LOADING STATE
+      RENDER STATES
   ===================================== */
-  if (!indicator) {
+  if (isLoading && !indicator) {
     return (
       <div className="flex flex-col justify-center items-center h-screen bg-[#f8f9fa]">
         <Loader2 className="w-12 h-12 animate-spin text-[#1a3a32] mb-4" />
         <p className="text-[#8c94a4] font-black uppercase tracking-widest text-xs">
-          Loading Indicator Details...
+          Accessing Official Record...
         </p>
       </div>
     );
   }
 
-  /* =====================================
-     RENDER
-  ===================================== */
+  if (!indicator) {
+    return (
+      <div className="flex flex-col justify-center items-center h-screen">
+        <p className="text-gray-500 font-bold">Record not found.</p>
+        <button
+          onClick={() => navigate(-1)}
+          className="mt-4 text-[#c2a336] underline font-bold"
+        >
+          Return to Registry
+        </button>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen p-6 lg:p-10 bg-[#f8f9fa] space-y-6">
       <button
@@ -165,7 +132,7 @@ const AdminIndicatorDetail: React.FC = () => {
           <div className="relative z-10 space-y-4">
             <div className="flex items-center gap-3">
               <span className="px-3 py-1 bg-[#c2a336] text-[#1a3a32] rounded-full text-[10px] font-black uppercase">
-                Official Record
+                Registry Review Mode
               </span>
               <span
                 className={`px-3 py-1 rounded-full text-[10px] font-black uppercase border ${getStatusStyles(
@@ -183,19 +150,19 @@ const AdminIndicatorDetail: React.FC = () => {
             <div className="flex flex-wrap gap-6 pt-4 text-white/70">
               <div className="flex items-center gap-2 text-sm font-medium">
                 <Info size={16} className="text-[#c2a336]" />
-                {indicator.category?.title ?? "General"}
+                {indicator.category?.title ?? "General Category"}
               </div>
               <div className="flex items-center gap-2 text-sm font-medium">
                 <Activity size={16} className="text-[#c2a336]" />
-                {indicator.unitOfMeasure}
+                Metric: {indicator.unitOfMeasure}
               </div>
             </div>
           </div>
         </div>
 
-        {/* CONTENT */}
+        {/* CONTENT GRID */}
         <div className="grid grid-cols-1 lg:grid-cols-3 divide-y lg:divide-y-0 lg:divide-x divide-gray-100">
-          {/* Assignment Context */}
+          {/* Section 1: Context */}
           <Section title="Assignment Context">
             <DetailItem
               icon={<UserIcon size={18} />}
@@ -208,23 +175,23 @@ const AdminIndicatorDetail: React.FC = () => {
             />
             <DetailItem
               icon={<Clock size={18} />}
-              label="Effective Since"
-              value={new Date(indicator.startDate).toLocaleDateString()}
+              label="Last Activity"
+              value={new Date(indicator.updatedAt).toLocaleDateString()}
             />
             <DetailItem
               icon={<Calendar size={18} />}
-              label="Reporting Deadline"
+              label="Filing Deadline"
               value={new Date(indicator.dueDate).toLocaleDateString()}
             />
           </Section>
 
-          {/* Current Performance */}
-          <Section title="Current Performance" className="bg-gray-50/30">
-            <div className="space-y-4">
+          {/* Section 2: Evidence & Progress */}
+          <Section title="Verification Hub" className="bg-gray-50/30">
+            <div className="space-y-6">
               <div>
-                <div className="flex justify-between items-end">
+                <div className="flex justify-between items-end mb-2">
                   <span className="text-sm font-bold text-[#1a3a32]">
-                    Completion Progress
+                    Current Progress Score
                   </span>
                   <span className="text-2xl font-black text-[#c2a336]">
                     {indicator.progress}%
@@ -238,94 +205,89 @@ const AdminIndicatorDetail: React.FC = () => {
                 </div>
               </div>
 
-              <div className="p-4 bg-white rounded-2xl border border-gray-100">
-                <h4 className="text-[10px] font-black text-[#8c94a4] uppercase mb-2">
-                  Submitted Evidence
+              <div className="p-5 bg-white rounded-2xl border border-gray-100 shadow-sm">
+                <h4 className="text-[10px] font-black text-[#8c94a4] uppercase mb-4 tracking-wider">
+                  Exhibits for Review
                 </h4>
 
-                {indicator.evidence.length ? (
-                  <ul className="space-y-2">
+                {indicator.evidence.length > 0 ? (
+                  <ul className="space-y-3">
                     {indicator.evidence.map((file) => (
                       <li
                         key={file.publicId}
-                        className="flex items-center gap-2 text-sm font-bold"
+                        className="flex items-center justify-between group"
                       >
-                        <FileCheck size={16} className="text-[#c2a336]" />
+                        <div className="flex items-center gap-2 overflow-hidden">
+                          <FileCheck
+                            size={16}
+                            className="text-[#c2a336] flex-shrink-0"
+                          />
+                          <span className="text-sm font-bold truncate text-[#1a3a32]">
+                            {file.fileName}
+                          </span>
+                        </div>
                         <button
-                          onClick={() => downloadEvidence(file)}
-                          disabled={
-                            downloadingId === file.publicId ||
-                            indicator.status === "approved"
-                          }
-                          className={`underline truncate ${
-                            indicator.status === "approved"
-                              ? "text-gray-400 cursor-not-allowed"
-                              : ""
-                          }`}
+                          onClick={() => handleDownload(file)}
+                          disabled={downloadingId === file.publicId}
+                          className="p-2 hover:bg-[#f4f0e6] rounded-full text-[#c2a336] transition-colors disabled:opacity-50"
                         >
-                          {downloadingId === file.publicId
-                            ? "Downloading..."
-                            : file.fileName}
+                          {downloadingId === file.publicId ? (
+                            <Loader2 size={16} className="animate-spin" />
+                          ) : (
+                            <Download size={16} />
+                          )}
                         </button>
                       </li>
                     ))}
                   </ul>
                 ) : (
                   <p className="text-xs font-bold text-gray-400 italic">
-                    No evidence submitted yet.
+                    No files provided.
                   </p>
                 )}
 
-                {error && (
-                  <p className="text-xs text-red-500 mt-2 italic">{error}</p>
-                )}
-
-                {/* Approve / Reject Buttons */}
-                <div className="mt-6 flex gap-4">
-                  <button
-                    onClick={handleApprove}
-                    disabled={indicator.status === "approved"}
-                    className={`flex-1 py-3 rounded-2xl text-white font-black text-[11px] uppercase tracking-widest transition-all ${
-                      indicator.status === "approved"
-                        ? "bg-gray-400 cursor-not-allowed"
-                        : "bg-[#c2a336] hover:bg-[#d4b44a]"
-                    }`}
-                  >
-                    Confirm Approval
-                  </button>
-
-                  {indicator.status !== "approved" && (
-                    <button
-                      onClick={handleReject}
-                      className="flex-1 py-3 rounded-2xl bg-rose-600 text-white text-[11px] font-black uppercase tracking-widest hover:bg-rose-700 transition-all"
-                    >
-                      Return for Revision
-                    </button>
-                  )}
+                {/* READ-ONLY STATUS NOTICE */}
+                <div className="mt-8 p-4 bg-[#f4f0e6] rounded-xl border border-[#c2a336]/20 text-center">
+                  <ShieldCheck
+                    size={24}
+                    className="mx-auto text-[#c2a336] mb-2"
+                  />
+                  <p className="text-[10px] font-black text-[#1a3a32] uppercase tracking-widest">
+                    Read-Only Audit Mode
+                  </p>
+                  <p className="text-[10px] text-[#8c94a4] mt-1 font-medium italic">
+                    Record status and progress are locked in this view.
+                  </p>
                 </div>
               </div>
             </div>
           </Section>
 
-          {/* Internal Notes */}
-          <Section title="Internal Memoranda">
-            {indicator.notes.length ? (
-              <ul className="space-y-4">
-                {indicator.notes.map((note, idx) => (
-                  <li
-                    key={idx}
-                    className="flex gap-3 text-sm text-gray-600 italic"
-                  >
-                    <div className="min-w-[4px] h-4 bg-[#c2a336]/30 rounded-full mt-1" />
-                    {note}
-                  </li>
-                ))}
-              </ul>
-            ) : (
-              <p className="text-xs font-bold text-gray-400 italic text-center">
-                No additional notes provided.
-              </p>
-            )}
+          {/* Section 3: Notes */}
+          <Section title="Internal Ledger">
+            <div className="space-y-4">
+              {indicator.notes.length > 0 ? (
+                <div className="space-y-4">
+                  {indicator.notes.map((note: any, idx: number) => (
+                    <div
+                      key={idx}
+                      className="p-4 bg-white rounded-xl border-l-4 border-[#c2a336] shadow-sm"
+                    >
+                      <p className="text-sm text-gray-600 leading-relaxed italic">
+                        "{typeof note === "string" ? note : note.text}"
+                      </p>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="text-center py-10">
+                  <Info size={32} className="mx-auto text-gray-200 mb-2" />
+                  <p className="text-xs font-bold text-gray-400 italic">
+                    Registry is clear of remarks.
+                  </p>
+                </div>
+              )}
+            </div>
           </Section>
         </div>
       </div>
@@ -334,15 +296,15 @@ const AdminIndicatorDetail: React.FC = () => {
 };
 
 /* =====================================
-   UI HELPERS
+   UI HELPERS (SUB-COMPONENTS)
 ===================================== */
 const Section: React.FC<{
   title: string;
   className?: string;
   children: React.ReactNode;
 }> = ({ title, children, className = "" }) => (
-  <div className={`p-8 space-y-6 ${className}`}>
-    <h3 className="text-[10px] font-black text-[#8c94a4] uppercase tracking-widest">
+  <div className={`p-8 lg:p-10 space-y-6 ${className}`}>
+    <h3 className="text-[10px] font-black text-[#8c94a4] uppercase tracking-widest border-b border-gray-100 pb-2">
       {title}
     </h3>
     {children}
@@ -358,11 +320,13 @@ const DetailItem = ({
   label: string;
   value: string;
 }) => (
-  <div className="flex items-start gap-3">
-    <div className="p-2 bg-[#f4f0e6] text-[#c2a336] rounded-lg">{icon}</div>
+  <div className="flex items-start gap-4">
+    <div className="p-3 bg-[#f4f0e6] text-[#c2a336] rounded-xl">{icon}</div>
     <div>
-      <p className="text-[10px] font-bold text-[#8c94a4] uppercase">{label}</p>
-      <p className="text-sm font-bold text-[#1a3a32]">{value}</p>
+      <p className="text-[10px] font-bold text-[#8c94a4] uppercase tracking-tight">
+        {label}
+      </p>
+      <p className="text-sm font-black text-[#1a3a32]">{value}</p>
     </div>
   </div>
 );
@@ -371,12 +335,12 @@ const getStatusStyles = (status: string) => {
   switch (status.toLowerCase()) {
     case "approved":
       return "bg-emerald-500/20 border-emerald-500/50 text-emerald-100";
+    case "submitted":
+      return "bg-blue-500/20 border-blue-500/50 text-blue-100";
     case "pending":
       return "bg-amber-500/20 border-amber-500/50 text-amber-100";
     case "rejected":
       return "bg-rose-500/20 border-rose-500/50 text-rose-100";
-    case "overdue":
-      return "bg-rose-500/30 border-rose-500/70 text-rose-50";
     default:
       return "bg-gray-500/20 border-gray-500/50 text-gray-100";
   }

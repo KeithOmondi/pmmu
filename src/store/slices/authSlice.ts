@@ -1,4 +1,8 @@
-import { createSlice, createAsyncThunk } from "@reduxjs/toolkit";
+import {
+  createSlice,
+  createAsyncThunk,
+  type PayloadAction,
+} from "@reduxjs/toolkit";
 import api from "../../api/axios";
 import type { AppDispatch } from "../store";
 import { fetchMyNotifications } from "./notificationsSlice";
@@ -16,14 +20,14 @@ export interface User {
   pjNumber?: string;
   role: Role;
   accountVerified?: boolean;
-  avatar?: string; // Stores the secure_url string from Cloudinary
+  avatar?: string;
 }
 
 interface AuthResponse {
   success: boolean;
   message: string;
-  user: User;
-  accessToken: string;
+  user?: User;
+  accessToken?: string;
 }
 
 interface AuthState {
@@ -31,6 +35,12 @@ interface AuthState {
   loading: boolean;
   error: string | null;
   isAuthenticated: boolean;
+
+  otpSent: boolean;
+  otpMessage: string | null;
+  otpCooldown: number;
+
+  pjNumber: string | null; // ✅ FIX: persist pjNumber across OTP steps
 }
 
 const initialState: AuthState = {
@@ -38,11 +48,18 @@ const initialState: AuthState = {
   loading: false,
   error: null,
   isAuthenticated: false,
+
+  otpSent: false,
+  otpMessage: null,
+  otpCooldown: 0,
+
+  pjNumber: null, // ✅
 };
 
-/**
- * Ensures roles are always stored in the correct casing in Redux
- */
+/* =========================
+   HELPERS
+========================= */
+
 const normalizeRole = (role: string): Role => {
   const r = role?.toLowerCase();
   if (r === "superadmin") return "SuperAdmin";
@@ -54,22 +71,79 @@ const normalizeRole = (role: string): Role => {
    THUNKS
 ========================= */
 
-// 1. LOGIN
-export const login = createAsyncThunk<
+// 1. REQUEST LOGIN OTP
+export const requestLoginOtp = createAsyncThunk<
   AuthResponse,
-  { email: string; password: string },
+  { pjNumber: string },
   { rejectValue: string }
->("auth/login", async (payload, { rejectWithValue }) => {
+>("auth/requestLoginOtp", async ({ pjNumber }, { rejectWithValue }) => {
   try {
-    const { data } = await api.post<AuthResponse>("/auth/login", payload);
-    localStorage.setItem("accessToken", data.accessToken);
+    const { data } = await api.post<AuthResponse>("/auth/login/request-otp", {
+      pjNumber,
+    });
     return data;
   } catch (err: any) {
-    return rejectWithValue(err.response?.data?.message || "Login failed");
+    return rejectWithValue(
+      err.response?.data?.message || "Failed to request OTP"
+    );
   }
 });
 
-// 2. REFRESH SESSION
+// 2. RESEND LOGIN OTP
+export const resendLoginOtp = createAsyncThunk<
+  AuthResponse,
+  void,
+  { state: { auth: AuthState }; rejectValue: string }
+>("auth/resendLoginOtp", async (_, { getState, rejectWithValue }) => {
+  try {
+    const pjNumber = getState().auth.pjNumber;
+
+    if (!pjNumber) {
+      return rejectWithValue("PJ Number missing. Please restart login.");
+    }
+
+    const { data } = await api.post<AuthResponse>("/auth/login/resend-otp", {
+      pjNumber,
+    });
+    return data;
+  } catch (err: any) {
+    return rejectWithValue(
+      err.response?.data?.message || "Failed to resend OTP"
+    );
+  }
+});
+
+// 3. VERIFY OTP
+export const verifyLoginOtp = createAsyncThunk<
+  AuthResponse,
+  { otp: string },
+  { state: { auth: AuthState }; rejectValue: string }
+>("auth/verifyLoginOtp", async ({ otp }, { getState, rejectWithValue }) => {
+  try {
+    const pjNumber = getState().auth.pjNumber;
+
+    if (!pjNumber) {
+      return rejectWithValue("PJ Number missing. Please restart login.");
+    }
+
+    const { data } = await api.post<AuthResponse>("/auth/login/verify-otp", {
+      pjNumber,
+      otp,
+    });
+
+    if (data.accessToken) {
+      localStorage.setItem("accessToken", data.accessToken);
+    }
+
+    return data;
+  } catch (err: any) {
+    return rejectWithValue(
+      err.response?.data?.message || "OTP verification failed"
+    );
+  }
+});
+
+// 4. REFRESH SESSION
 export const refreshUser = createAsyncThunk<
   AuthResponse,
   void,
@@ -77,14 +151,18 @@ export const refreshUser = createAsyncThunk<
 >("auth/refreshUser", async (_, { rejectWithValue }) => {
   try {
     const { data } = await api.post<AuthResponse>("/auth/refresh");
-    localStorage.setItem("accessToken", data.accessToken);
+
+    if (data.accessToken) {
+      localStorage.setItem("accessToken", data.accessToken);
+    }
+
     return data;
   } catch (err: any) {
     return rejectWithValue(err.response?.data?.message || "Session expired");
   }
 });
 
-// 3. UPDATE PROFILE
+// 5. UPDATE PROFILE
 export const updateProfile = createAsyncThunk<
   AuthResponse,
   FormData,
@@ -94,13 +172,11 @@ export const updateProfile = createAsyncThunk<
     const { data } = await api.put<AuthResponse>("/users/profile", formData);
     return data;
   } catch (err: any) {
-    return rejectWithValue(
-      err.response?.data?.message || "Registry synchronization failed"
-    );
+    return rejectWithValue(err.response?.data?.message || "Update failed");
   }
 });
 
-// 4. LOGOUT
+// 6. LOGOUT
 export const logout = createAsyncThunk<void, void, { dispatch: AppDispatch }>(
   "auth/logout",
   async (_, { dispatch }) => {
@@ -121,51 +197,91 @@ const authSlice = createSlice({
   name: "auth",
   initialState,
   reducers: {
-    setAuthenticated(state) {
-      state.isAuthenticated = true;
-    },
     clearAuthError(state) {
       state.error = null;
+    },
+    clearOtpMessage(state) {
+      state.otpMessage = null;
+    },
+    resetOtpState(state) {
+      state.otpSent = false;
+      state.otpMessage = null;
+      state.otpCooldown = 0;
+      state.pjNumber = null; // ✅ reset login flow
+    },
+    setOtpCooldown(state, action: PayloadAction<number>) {
+      state.otpCooldown = action.payload;
+    },
+    decrementOtpCooldown(state) {
+      if (state.otpCooldown > 0) {
+        state.otpCooldown -= 1;
+      }
     },
   },
   extraReducers: (builder) => {
     builder
-      /* --- LOGIN --- */
-      .addCase(login.pending, (state) => {
+      /* --- REQUEST OTP --- */
+      .addCase(requestLoginOtp.pending, (state) => {
         state.loading = true;
         state.error = null;
       })
-      .addCase(login.fulfilled, (state, action) => {
+      .addCase(requestLoginOtp.fulfilled, (state, action) => {
         state.loading = false;
-        state.user = {
-          ...action.payload.user,
-          role: normalizeRole(action.payload.user.role),
-        };
-        state.isAuthenticated = true;
+        state.otpSent = true;
+        state.otpMessage = action.payload.message || "OTP sent successfully";
+        state.otpCooldown = 60;
+        state.pjNumber = action.meta.arg.pjNumber; // ✅ CRITICAL FIX
       })
-      .addCase(login.rejected, (state, action) => {
+      .addCase(requestLoginOtp.rejected, (state, action) => {
+        state.loading = false;
+        state.error = action.payload as string;
+      })
+
+      /* --- RESEND OTP --- */
+      .addCase(resendLoginOtp.fulfilled, (state, action) => {
+        state.otpMessage = action.payload.message || "OTP resent successfully";
+        state.otpCooldown = 60;
+      })
+
+      /* --- VERIFY OTP --- */
+      .addCase(verifyLoginOtp.pending, (state) => {
+        state.loading = true;
+        state.error = null;
+      })
+      .addCase(verifyLoginOtp.fulfilled, (state, action) => {
+        state.loading = false;
+        state.user = action.payload.user
+          ? {
+              ...action.payload.user,
+              role: normalizeRole(action.payload.user.role),
+            }
+          : null;
+
+        state.isAuthenticated = !!action.payload.accessToken;
+        state.otpSent = false;
+        state.otpMessage = null;
+        state.otpCooldown = 0;
+        state.pjNumber = null; // ✅ clear after success
+      })
+      .addCase(verifyLoginOtp.rejected, (state, action) => {
         state.loading = false;
         state.error = action.payload as string;
       })
 
       /* --- REFRESH --- */
       .addCase(refreshUser.fulfilled, (state, action) => {
-        state.loading = false;
-        state.user = {
-          ...action.payload.user,
-          role: normalizeRole(action.payload.user.role),
-        };
-        state.isAuthenticated = true;
+        state.user = action.payload.user
+          ? {
+              ...action.payload.user,
+              role: normalizeRole(action.payload.user.role),
+            }
+          : null;
+
+        state.isAuthenticated = !!action.payload.accessToken;
       })
 
       /* --- UPDATE PROFILE --- */
-      .addCase(updateProfile.pending, (state) => {
-        state.loading = true;
-        state.error = null;
-      })
       .addCase(updateProfile.fulfilled, (state, action) => {
-        state.loading = false;
-        // Logic: Merge the returned user data into the existing state
         if (action.payload.success && action.payload.user) {
           state.user = {
             ...action.payload.user,
@@ -173,19 +289,26 @@ const authSlice = createSlice({
           };
         }
       })
-      .addCase(updateProfile.rejected, (state, action) => {
-        state.loading = false;
-        state.error = action.payload as string;
-      })
 
       /* --- LOGOUT --- */
       .addCase(logout.fulfilled, (state) => {
         state.user = null;
         state.isAuthenticated = false;
         state.loading = false;
+        state.otpSent = false;
+        state.otpMessage = null;
+        state.otpCooldown = 0;
+        state.pjNumber = null;
       });
   },
 });
 
-export const { setAuthenticated, clearAuthError } = authSlice.actions;
+export const {
+  clearAuthError,
+  clearOtpMessage,
+  resetOtpState,
+  setOtpCooldown,
+  decrementOtpCooldown,
+} = authSlice.actions;
+
 export default authSlice.reducer;
