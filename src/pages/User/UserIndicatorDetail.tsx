@@ -6,7 +6,6 @@ import {
   selectIndicatorsLoading,
   selectSubmittingEvidence,
   submitIndicatorEvidence,
-  downloadEvidence,
   type IIndicator,
   type IEvidence,
 } from "../../store/slices/indicatorsSlice";
@@ -15,17 +14,18 @@ import {
   ArrowLeft,
   Upload,
   AlertCircle,
-  FileCheck,
-  Download,
   ShieldCheck,
-  Clock,
   Plus,
   X,
   FileText,
+  Lock,
+  ChevronRight,
+  Info
 } from "lucide-react";
 import toast from "react-hot-toast";
+import EvidencePreviewModal from "./EvidencePreviewModal";
 
-/* ===================================== HELPERS ===================================== */
+/* --- HELPERS --- */
 const formatDuration = (ms: number) => {
   const abs = Math.max(0, Math.abs(ms));
   const days = Math.floor(abs / (1000 * 60 * 60 * 24));
@@ -37,7 +37,6 @@ const formatDuration = (ms: number) => {
   return `${minutes}m remaining`;
 };
 
-/* ===================================== COMPONENT ===================================== */
 const UserIndicatorDetail: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
@@ -55,6 +54,7 @@ const UserIndicatorDetail: React.FC = () => {
   const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
   const [descriptions, setDescriptions] = useState<string[]>([]);
   const [now, setNow] = useState(Date.now());
+  const [previewFile, setPreviewFile] = useState<IEvidence | null>(null);
 
   useEffect(() => {
     const t = setInterval(() => setNow(Date.now()), 1000);
@@ -73,14 +73,15 @@ const UserIndicatorDetail: React.FC = () => {
     setDescriptions((prev) => prev.filter((_, i) => i !== index));
   };
 
-  const updateDescription = (index: number, val: string) => {
-    setDescriptions((prev) => prev.map((d, i) => (i === index ? val : d)));
+  const updateDescription = (index: number, value: string) => {
+    setDescriptions((prev) => prev.map((d, i) => (i === index ? value : d)));
   };
 
   const handleSubmit = async () => {
-    if (!selectedFiles.length || !indicator) return;
-    if (descriptions.some((d) => !d.trim()))
-      return toast.error("Please provide a description for every file.");
+    if (!indicator || !selectedFiles.length) return;
+    if (descriptions.some((d) => !d.trim())) {
+      return toast.error("Description required for all files.");
+    }
 
     try {
       await dispatch(
@@ -88,21 +89,20 @@ const UserIndicatorDetail: React.FC = () => {
           id: indicator._id,
           files: selectedFiles,
           descriptions,
-          zipParent: selectedFiles.length > 1 ? `zip-${Date.now()}` : undefined,
         }),
       ).unwrap();
 
       getSocket().emit("notification:new", {
-        title: "Evidence Re-Submitted",
-        message: `Updated evidence submitted for "${indicator.indicatorTitle}".`,
+        title: "Evidence Updated",
+        message: `New documents added to ${indicator.indicatorTitle}`,
         targetUserId: indicator.createdBy,
       });
 
       setSelectedFiles([]);
       setDescriptions([]);
-      toast.success("Evidence submitted for review!");
-    } catch {
-      toast.error("Failed to submit evidence");
+      toast.success("Evidence uploaded successfully");
+    } catch (err: any) {
+      toast.error(err || "Upload failed");
     }
   };
 
@@ -111,295 +111,298 @@ const UserIndicatorDetail: React.FC = () => {
 
   const dueTime = new Date(indicator.dueDate).getTime();
   const isOverdue = now > dueTime;
-
-  /**
-   * RESTRICTION REMOVED: 
-   * Removed "now >= new Date(indicator.startDate).getTime()"
-   * Users can now submit even if the start date hasn't arrived.
-   */
-  const canSubmit = !["approved", "completed"].includes(indicator.status);
-
-  const rejectionNote =
-    indicator.status === "rejected"
-      ? indicator.notes?.[indicator.notes.length - 1]
-      : null;
+  const canSubmit = indicator.status !== "approved";
 
   return (
-    <div className="max-w-7xl mx-auto p-6 md:p-10 min-h-screen bg-[#FDFDFD] text-[#1E3A2B]">
-      {/* Navigation */}
-      <button
-        onClick={() => navigate(-1)}
-        className="group flex items-center text-[10px] font-black tracking-[0.2em] uppercase opacity-50 hover:opacity-100 transition-all mb-10"
-      >
-        <ArrowLeft
-          size={14}
-          className="mr-2 transition-transform group-hover:-translate-x-1"
+    <div className="min-h-screen bg-[#F8F9FA] text-[#1E3A2B] selection:bg-emerald-100">
+      {/* Top Progress Bar */}
+      <div className="h-1 bg-gray-200 sticky top-0 z-[60]">
+        <div 
+          className="h-full bg-[#C69214] transition-all duration-1000" 
+          style={{ width: `${indicator.progress}%` }} 
         />
-        Back to Dashboard
-      </button>
+      </div>
 
-      {/* Header Section */}
-      <header className="flex flex-col lg:flex-row lg:items-end justify-between gap-8 mb-12">
-        <div className="flex-1">
-          <span className="inline-block text-[10px] font-black text-[#C69214] uppercase tracking-widest bg-[#F9F4E8] px-3 py-1 rounded-md mb-4">
-            Registry Entry #{indicator._id.slice(-6).toUpperCase()}
-          </span>
-          <h1 className="text-4xl md:text-5xl font-serif font-bold mb-4 leading-tight">
-            {indicator.indicatorTitle}
-          </h1>
-          <p className="text-gray-500 text-sm max-w-2xl leading-relaxed">
-            Please ensure all uploaded documents are legible and comply with
-            audit standards. Once submitted, your progress will be reviewed by
-            the authorized auditor.
-          </p>
-        </div>
+      <div className="max-w-7xl mx-auto p-6 md:p-12">
+        {/* Navigation */}
+        <button
+          onClick={() => navigate(-1)}
+          className="group flex items-center gap-3 text-[10px] font-black tracking-[0.2em] uppercase text-gray-400 hover:text-[#1E3A2B] mb-12 transition-all"
+        >
+          <ArrowLeft size={14} className="group-hover:-translate-x-1 transition-transform" />
+          Back to Audit Index
+        </button>
 
-        <div className="bg-white border border-gray-100 p-6 rounded-2xl shadow-sm flex items-center gap-6 min-w-[240px]">
-          <div className="bg-[#F9F4E8] p-4 rounded-xl">
-            <ShieldCheck className="text-[#C69214]" size={28} />
-          </div>
-          <div>
-            <p className="text-[10px] font-black text-gray-400 uppercase tracking-wider mb-1">
-              Verified Progress
-            </p>
-            <p className="text-4xl font-serif font-bold">
-              {indicator.progress}%
-            </p>
-          </div>
-        </div>
-      </header>
-
-      {/* Rejection Alert */}
-      {rejectionNote && (
-        <div className="mb-10 p-6 bg-red-50 border-l-4 border-red-500 rounded-r-2xl animate-in fade-in slide-in-from-top-4">
-          <div className="flex items-center gap-2 mb-2 text-red-700">
-            <AlertCircle size={16} />
-            <h3 className="text-xs font-black uppercase tracking-widest">
-              Auditor Feedback
-            </h3>
-          </div>
-          <p className="text-sm text-red-800 leading-relaxed font-medium">
-            {rejectionNote.text}
-          </p>
-        </div>
-      )}
-
-      {/* Main Content Grid */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-10">
-        <div className="lg:col-span-8 space-y-8">
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-6 bg-white p-8 rounded-2xl border border-gray-100 shadow-sm">
-            <Stat
-              label="Deadline"
-              value={new Date(indicator.dueDate).toLocaleDateString("en-GB")}
-            />
-            <Stat
-              label="Time Clock"
-              value={isOverdue ? "OVERDUE" : formatDuration(dueTime - now)}
-              valueClass={isOverdue ? "text-red-600" : "text-blue-600"}
-              icon={<Clock size={12} />}
-            />
-            <Stat label="Unit" value={indicator.unitOfMeasure} />
-            <Stat
-              label="Status"
-              value={indicator.status.toUpperCase()}
-              valueClass="text-[#C69214]"
-            />
-          </div>
-
-          <div className="bg-white rounded-2xl border border-gray-100 overflow-hidden shadow-sm">
-            <div className="px-8 py-6 border-b border-gray-50 flex justify-between items-center bg-gray-50/30">
-              <h2 className="text-[11px] font-black uppercase tracking-widest flex items-center gap-2">
-                <FileCheck size={16} className="text-[#C69214]" /> Evidence
-                Registry
-              </h2>
-              <span className="text-[10px] font-bold text-gray-400 bg-gray-100 px-2 py-1 rounded">
-                {indicator.evidence.length} Record
-                {indicator.evidence.length !== 1 ? "s" : ""}
+        <header className="grid grid-cols-1 lg:grid-cols-12 gap-12 items-end mb-16">
+          <div className="lg:col-span-8">
+            <div className="flex items-center gap-3 mb-6">
+               <div className="h-[1px] w-8 bg-[#C69214]" />
+               <span className="text-[10px] font-black text-[#C69214] uppercase tracking-widest">
+                Case ID: {indicator._id.slice(-8).toUpperCase()}
               </span>
             </div>
-
-            <div className="divide-y divide-gray-50">
-              {indicator.evidence.length > 0 ? (
-                indicator.evidence.map((file) => (
-                  <EvidenceRow
-                    key={file.publicId}
-                    file={file}
-                    onDownload={() =>
-                      dispatch(
-                        downloadEvidence({
-                          indicatorId: indicator._id,
-                          publicId: file.publicId,
-                          fileName: file.fileName,
-                        }),
-                      )
-                    }
-                  />
-                ))
-              ) : (
-                <div className="p-12 text-center text-gray-400 text-sm italic">
-                  No evidence uploaded yet.
-                </div>
-              )}
+            <h1 className="text-4xl md:text-3xl font-serif font-bold leading-tight mb-6">
+              {indicator.indicatorTitle}
+            </h1>
+            <div className="flex flex-wrap gap-4">
+               <Badge icon={<ShieldCheck size={12}/>} label="Encrypted Storage" color="bg-emerald-50 text-emerald-700 border-emerald-100" />
+               <Badge icon={<Lock size={12}/>} label="Read-Only Evidence" color="bg-blue-50 text-blue-700 border-blue-100" />
             </div>
           </div>
-        </div>
 
-        <aside className="lg:col-span-4">
-          {canSubmit ? (
-            <div className="bg-white rounded-2xl border border-gray-100 p-6 shadow-xl sticky top-6">
-              <h2 className="text-[11px] font-black uppercase tracking-widest mb-6 flex items-center gap-2">
-                <Plus size={16} className="text-[#C69214]" /> New Submission
-              </h2>
+          <div className="lg:col-span-4">
+            <div className="bg-[#1E3A2B] rounded-[2rem] p-8 text-white shadow-2xl shadow-emerald-950/20 relative overflow-hidden group">
+              <div className="absolute top-0 right-0 p-8 opacity-10 group-hover:scale-110 transition-transform duration-700">
+                <ShieldCheck size={120} />
+              </div>
+              <p className="text-[10px] font-black uppercase tracking-[0.3em] opacity-60 mb-2">Completion Weight</p>
+              <div className="flex items-baseline gap-2">
+                <span className="text-6xl font-serif font-bold">{indicator.progress}</span>
+                <span className="text-xl font-serif opacity-60">%</span>
+              </div>
+            </div>
+          </div>
+        </header>
 
-              <label className="group flex flex-col items-center border-2 border-dashed border-gray-200 rounded-2xl p-10 cursor-pointer hover:border-[#C69214] hover:bg-[#F9F4E8]/30 transition-all">
-                <div className="bg-gray-50 p-4 rounded-full group-hover:bg-white transition-colors">
-                  <Upload
-                    size={24}
-                    className="text-gray-400 group-hover:text-[#C69214]"
-                  />
+        {indicator.status === "rejected" && (
+          <div className="mb-12 animate-in fade-in slide-in-from-bottom-4 duration-500">
+             <div className="bg-white border-2 border-rose-100 rounded-[2rem] p-8 flex flex-col md:flex-row gap-6 items-start shadow-sm">
+                <div className="p-4 bg-rose-50 rounded-2xl text-rose-500">
+                  <AlertCircle size={24} />
                 </div>
-                <span className="text-[11px] font-black mt-4 uppercase tracking-tighter">
-                  Browse Registry Files
+                <div>
+                   <h3 className="text-xs font-black uppercase text-rose-900 mb-2 tracking-widest">Auditor's Rejection Remark</h3>
+                   <p className="text-gray-600 leading-relaxed italic">
+                    "{indicator.notes[indicator.notes.length - 1]?.text}"
+                   </p>
+                </div>
+             </div>
+          </div>
+        )}
+
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-12">
+          {/* Main Content */}
+          <div className="lg:col-span-8 space-y-12">
+            
+            {/* Metadata Grid */}
+            <section className="grid grid-cols-2 md:grid-cols-4 gap-px bg-gray-200 border border-gray-200 rounded-[2rem] overflow-hidden shadow-sm">
+              <StatCard label="Due Date" value={new Date(indicator.dueDate).toLocaleDateString("en-GB", { day: '2-digit', month: 'short', year: 'numeric'})} />
+              <StatCard 
+                label="Countdown" 
+                value={isOverdue ? "OVERDUE" : formatDuration(dueTime - now)} 
+                highlight={isOverdue ? "text-rose-500" : "text-emerald-600"}
+              />
+              <StatCard label="Measure Unit" value={indicator.unitOfMeasure} />
+              <StatCard label="Audit Status" value={indicator.status} highlight="text-[#C69214]" />
+            </section>
+
+            {/* Evidence Registry */}
+            <section>
+              <div className="flex items-center justify-between mb-8 px-2">
+                <h2 className="text-xs font-black uppercase tracking-[0.2em] flex items-center gap-3">
+                  <FileText size={16} className="text-[#C69214]" /> Evidence Registry
+                </h2>
+                <span className="text-[10px] font-bold py-1 px-3 bg-white border rounded-full text-gray-400">
+                  {indicator.evidence.length} Verified Documents
                 </span>
-                <input
-                  type="file"
-                  multiple
-                  hidden
-                  onChange={(e) => handleFileChange(e.target.files)}
-                />
-              </label>
+              </div>
 
-              {selectedFiles.length > 0 && (
-                <div className="mt-8 space-y-4">
-                  {selectedFiles.map((file, idx) => (
-                    <div
-                      key={idx}
-                      className="bg-gray-50 p-4 rounded-xl relative border border-gray-100"
-                    >
-                      <button
-                        onClick={() => removeFile(idx)}
-                        className="absolute -top-2 -right-2 bg-white border shadow-sm rounded-full p-1 hover:text-red-500 transition-colors"
-                      >
-                        <X size={12} />
-                      </button>
-                      <p className="text-[10px] font-bold truncate pr-4 mb-2">
-                        {file.name}
-                      </p>
-                      <input
-                        type="text"
-                        placeholder="Describe this evidence..."
-                        className="w-full text-xs p-2 rounded border border-gray-200 focus:outline-none focus:ring-1 focus:ring-[#C69214]"
-                        value={descriptions[idx]}
-                        onChange={(e) => updateDescription(idx, e.target.value)}
+              <div className="bg-white rounded-[2.5rem] border border-gray-100 shadow-sm overflow-hidden">
+                {indicator.evidence.length ? (
+                  <div className="divide-y divide-gray-50">
+                    {indicator.evidence.map((file, idx) => (
+                      <EvidenceRow
+                        key={`${file.publicId}-${idx}`}
+                        file={file}
+                        onPreview={() => setPreviewFile(file)}
                       />
+                    ))}
+                  </div>
+                ) : (
+                  <div className="py-24 text-center">
+                    <div className="w-16 h-16 bg-gray-50 rounded-full flex items-center justify-center mx-auto mb-6">
+                      <FileText size={24} className="text-gray-300" />
                     </div>
-                  ))}
-                </div>
-              )}
+                    <p className="text-xs font-bold text-gray-400 uppercase tracking-widest">Registry Empty</p>
+                    <p className="text-[10px] text-gray-400 mt-2">No documents have been logged for this audit item yet.</p>
+                  </div>
+                )}
+              </div>
+            </section>
+          </div>
 
-              <button
-                onClick={handleSubmit}
-                disabled={!selectedFiles.length || submittingEvidence}
-                className="w-full mt-8 py-4 rounded-xl bg-[#1E3A2B] text-white font-black text-[11px] uppercase tracking-widest disabled:opacity-50 disabled:cursor-not-allowed hover:bg-[#2a4f3b] transition-all shadow-lg active:scale-[0.98]"
-              >
-                {submittingEvidence
-                  ? "Processing Submission..."
-                  : "Finalize Submission"}
-              </button>
-            </div>
-          ) : (
-            <div className="bg-gray-50 rounded-2xl border border-dashed border-gray-300 p-8 text-center">
-              <ShieldCheck className="mx-auto text-gray-300 mb-4" size={32} />
-              <p className="text-xs font-bold text-gray-400 uppercase">
-                Submissions Locked
-              </p>
-              <p className="text-[10px] text-gray-400 mt-2 italic">
-                This indicator is already {indicator.status}.
-              </p>
-            </div>
-          )}
-        </aside>
+          {/* Submission Sidebar */}
+          <aside className="lg:col-span-4">
+            {canSubmit ? (
+              <div className="sticky top-12">
+                <div className="bg-white rounded-[2.5rem] border border-gray-100 shadow-xl p-8 relative overflow-hidden">
+                  <div className="absolute top-0 right-0 p-4 opacity-5">
+                    <Upload size={80} />
+                  </div>
+                  
+                  <h2 className="text-xs font-black uppercase tracking-widest mb-8 flex items-center gap-2">
+                    <Plus size={16} className="text-[#C69214]" /> Submit Assets
+                  </h2>
+
+                  <label className="group flex flex-col items-center justify-center border-2 border-dashed border-gray-100 rounded-3xl p-10 cursor-pointer hover:border-[#C69214] hover:bg-orange-50/20 transition-all duration-500">
+                    <div className="w-12 h-12 bg-gray-50 rounded-2xl flex items-center justify-center text-gray-400 mb-4 group-hover:scale-110 group-hover:text-[#C69214] transition-all">
+                      <Upload size={20} />
+                    </div>
+                    <span className="text-[10px] font-black uppercase tracking-widest text-gray-400 group-hover:text-[#1E3A2B]">Select Files</span>
+                    <input
+                      type="file"
+                      multiple
+                      hidden
+                      onChange={(e) => handleFileChange(e.target.files)}
+                    />
+                  </label>
+
+                  {/* File List */}
+                  <div className="mt-8 space-y-4 max-h-[300px] overflow-y-auto pr-2 custom-scrollbar">
+                    {selectedFiles.map((file, i) => (
+                      <div
+                        key={i}
+                        className="group bg-gray-50 rounded-2xl p-4 border border-transparent hover:border-gray-200 transition-all animate-in slide-in-from-right-4 duration-300"
+                      >
+                        <div className="flex justify-between items-center mb-3">
+                           <div className="flex items-center gap-2 overflow-hidden">
+                              <FileText size={12} className="text-[#C69214] shrink-0" />
+                              <span className="text-[11px] font-bold truncate">{file.name}</span>
+                           </div>
+                           <button onClick={() => removeFile(i)} className="text-gray-300 hover:text-rose-500 transition-colors">
+                              <X size={14} />
+                           </button>
+                        </div>
+                        <textarea
+                          rows={2}
+                          className="w-full text-[11px] bg-white border border-gray-100 rounded-xl p-3 focus:ring-1 focus:ring-[#C69214] outline-none transition-all resize-none"
+                          placeholder="Provide context for this document..."
+                          value={descriptions[i]}
+                          onChange={(e) => updateDescription(i, e.target.value)}
+                        />
+                      </div>
+                    ))}
+                  </div>
+
+                  <button
+                    onClick={handleSubmit}
+                    disabled={!selectedFiles.length || submittingEvidence}
+                    className="w-full mt-8 py-5 rounded-2xl bg-[#1E3A2B] text-white font-black text-[10px] uppercase tracking-[0.3em] shadow-2xl shadow-emerald-900/40 disabled:opacity-20 disabled:shadow-none transition-all active:scale-[0.98] flex items-center justify-center gap-2"
+                  >
+                    {submittingEvidence ? (
+                      <>
+                        <div className="w-3 h-3 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                        Analyzing Assets
+                      </>
+                    ) : (
+                      "Verify & Submit"
+                    )}
+                  </button>
+                  
+                  <div className="mt-6 p-4 bg-gray-50 rounded-2xl flex gap-3">
+                    <Info size={14} className="text-gray-400 shrink-0" />
+                    <p className="text-[9px] text-gray-400 leading-relaxed uppercase font-bold tracking-tight">
+                      Submissions are final once reviewed by an administrator. Ensure all files are clearly legible.
+                    </p>
+                  </div>
+                </div>
+              </div>
+            ) : (
+              <div className="p-12 text-center border-2 border-dashed border-gray-200 rounded-[3rem] bg-gray-50/50">
+                <Lock size={32} className="mx-auto text-gray-300 mb-4 opacity-40" />
+                <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest leading-loose">
+                  Registry Locked <br />
+                  <span className="bg-emerald-100 text-emerald-700 px-2 py-0.5 rounded ml-1">Closed Audit Item</span>
+                </p>
+              </div>
+            )}
+          </aside>
+        </div>
       </div>
+
+      {previewFile && (
+        <EvidencePreviewModal
+          file={previewFile}
+          onClose={() => setPreviewFile(null)}
+        />
+      )}
     </div>
   );
 };
 
-/* ===================================== SUB COMPONENTS ===================================== */
-const Stat = ({
-  label,
-  value,
-  valueClass,
-  icon,
-}: {
-  label: string;
-  value: string;
-  valueClass?: string;
-  icon?: React.ReactNode;
-}) => (
-  <div className="space-y-1">
-    <p className="text-[9px] uppercase text-gray-400 font-black tracking-widest">
-      {label}
-    </p>
-    <div
-      className={`flex items-center gap-1.5 text-sm font-bold ${valueClass || "text-[#1E3A2B]"}`}
-    >
-      {icon} {value}
-    </div>
+/* --- SUB-COMPONENTS --- */
+
+const Badge = ({ icon, label, color }: any) => (
+  <div className={`flex items-center gap-2 px-3 py-1.5 rounded-full border text-[9px] font-black uppercase tracking-widest ${color}`}>
+    {icon} {label}
+  </div>
+);
+
+const StatCard = ({ label, value, highlight = "text-gray-900" }: any) => (
+  <div className="bg-white p-6 flex flex-col gap-2">
+    <span className="text-[9px] font-black uppercase text-gray-400 tracking-widest">{label}</span>
+    <span className={`text-sm font-bold truncate ${highlight}`}>{value}</span>
   </div>
 );
 
 const EvidenceRow = ({
   file,
-  onDownload,
+  onPreview,
 }: {
   file: IEvidence;
-  onDownload: () => void;
+  onPreview: () => void;
 }) => (
-  <div className="flex items-center justify-between p-6 hover:bg-gray-50/80 transition-colors group">
-    <div className="flex items-center gap-4">
-      <div className="p-3 bg-gray-100 rounded-lg group-hover:bg-white transition-colors">
-        <FileText size={20} className="text-gray-400" />
+  <div className="group flex justify-between items-center p-6 hover:bg-[#F8F9FA] transition-all duration-300">
+    <div className="flex items-center gap-5">
+      <div className="w-12 h-12 rounded-2xl bg-gray-50 flex items-center justify-center text-gray-400 group-hover:bg-[#1E3A2B] group-hover:text-white group-hover:rotate-6 transition-all duration-500 shadow-sm">
+        <FileText size={20} />
       </div>
       <div>
-        <p className="text-sm font-bold text-[#1E3A2B]">{file.fileName}</p>
-        <p className="text-[10px] text-gray-400 uppercase tracking-tight">
-          {file.description || "No description provided"}
-        </p>
+        <p className="text-sm font-bold text-[#1E3A2B] mb-1 group-hover:translate-x-1 transition-transform">{file.fileName}</p>
+        <div className="flex items-center gap-2">
+           <span className="text-[9px] font-black uppercase text-[#C69214] bg-orange-50 px-1.5 py-0.5 rounded">Log</span>
+           <p className="text-[10px] text-gray-400 font-medium">
+            {file.description || "No context provided"}
+          </p>
+        </div>
       </div>
     </div>
     <button
-      onClick={onDownload}
-      className="p-2 text-gray-400 hover:text-[#C69214] hover:bg-[#F9F4E8] rounded-full transition-all"
-      title="Download Evidence"
+      onClick={onPreview}
+      className="flex items-center gap-2 text-[10px] font-black uppercase tracking-widest px-5 py-3 rounded-xl border border-gray-100 bg-white hover:bg-[#1E3A2B] hover:text-white hover:border-[#1E3A2B] transition-all duration-300 shadow-sm"
     >
-      <Download size={18} />
+      Open Exhibit <ChevronRight size={12} />
     </button>
   </div>
 );
 
 const LoadingRecords = () => (
-  <div className="flex flex-col items-center justify-center h-screen bg-[#FDFDFD]">
-    <div className="w-10 h-10 border-2 border-[#C69214]/10 border-t-[#C69214] rounded-full animate-spin mb-4" />
-    <p className="text-[10px] font-black uppercase tracking-[0.3em] text-gray-400">
-      Loading Registry
+  <div className="flex flex-col items-center justify-center h-screen bg-white">
+    <div className="relative w-16 h-16 mb-8">
+      <div className="absolute inset-0 border-4 border-gray-50 rounded-full" />
+      <div className="absolute inset-0 border-4 border-[#C69214] rounded-full border-t-transparent animate-spin" />
+    </div>
+    <p className="text-[10px] font-black uppercase tracking-[0.4em] text-gray-400 animate-pulse">
+      Syncing Vault
     </p>
   </div>
 );
 
-const NotFound = ({ navigate }: { navigate: (n: number) => void }) => (
-  <div className="flex flex-col items-center justify-center h-screen text-center p-6">
-    <div className="bg-red-50 p-6 rounded-full mb-6">
-      <AlertCircle className="text-red-500" size={48} />
+const NotFound = ({ navigate }: any) => (
+  <div className="flex flex-col items-center justify-center h-screen text-center p-6 bg-[#F8F9FA]">
+    <div className="w-24 h-24 bg-white rounded-[2rem] flex items-center justify-center shadow-xl mb-8">
+       <AlertCircle size={40} className="text-rose-200" />
     </div>
-    <h2 className="text-2xl font-serif font-bold mb-2">Record Not Found</h2>
-    <p className="text-gray-500 text-sm mb-8">
-      The requested indicator could not be located in the registry.
+    <h2 className="text-2xl font-serif font-bold mb-4 text-[#1E3A2B]">Registry Link Broken</h2>
+    <p className="text-sm text-gray-400 mb-10 max-w-xs leading-relaxed uppercase font-bold tracking-tighter">
+      The specified indicator does not exist or your access credentials have expired.
     </p>
     <button
       onClick={() => navigate(-1)}
-      className="px-8 py-3 bg-[#1E3A2B] text-white text-[10px] font-black uppercase tracking-widest rounded-full"
+      className="group flex items-center gap-3 px-10 py-4 bg-[#1E3A2B] text-white text-[10px] font-black uppercase rounded-2xl tracking-[0.2em] shadow-2xl shadow-emerald-900/40 hover:-translate-y-1 transition-all"
     >
-      Return to Dashboard
+      <ArrowLeft size={14} className="group-hover:-translate-x-1 transition-transform" />
+      Return to Index
     </button>
   </div>
 );

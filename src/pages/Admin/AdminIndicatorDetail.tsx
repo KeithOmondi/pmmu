@@ -1,10 +1,9 @@
 // src/pages/Admin/SubmittedIndicatorDetail.tsx
-import React, { useEffect, useState, useMemo } from "react";
+import React, { useEffect, useMemo } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { useAppDispatch, useAppSelector } from "../../store/hooks";
 import {
   fetchAllIndicatorsForAdmin,
-  downloadEvidence as downloadEvidenceThunk,
   selectAllIndicators,
   selectIndicatorsLoading,
 } from "../../store/slices/indicatorsSlice";
@@ -19,10 +18,8 @@ import {
   Clock,
   Calendar,
   FileCheck,
-  Download,
   ShieldCheck,
 } from "lucide-react";
-import toast from "react-hot-toast";
 
 /* =====================================
    COMPONENT
@@ -35,8 +32,6 @@ const AdminIndicatorDetail: React.FC = () => {
   const indicators = useAppSelector(selectAllIndicators);
   const users = useAppSelector(selectAllUsers);
   const isLoading = useAppSelector(selectIndicatorsLoading);
-
-  const [downloadingId, setDownloadingId] = useState<string | null>(null);
 
   /* =====================================
       FETCH DATA
@@ -51,34 +46,12 @@ const AdminIndicatorDetail: React.FC = () => {
   }, [id, indicators]);
 
   /* =====================================
-      HELPERS & ACTIONS
+      HELPERS
   ===================================== */
   const getUserName = (userId: string | null) => {
     if (!userId) return "Unassigned";
     const user = users.find((u) => u._id === userId);
     return user?.name ?? "System Official";
-  };
-
-  const handleDownload = async (file: {
-    publicId: string;
-    fileName: string;
-  }) => {
-    if (!id) return;
-    try {
-      setDownloadingId(file.publicId);
-      await dispatch(
-        downloadEvidenceThunk({
-          indicatorId: id,
-          publicId: file.publicId,
-          fileName: file.fileName,
-        })
-      ).unwrap();
-      toast.success("Download started successfully");
-    } catch (err: any) {
-      toast.error(err || "Secure download failed.");
-    } finally {
-      setDownloadingId(null);
-    }
   };
 
   /* =====================================
@@ -207,7 +180,7 @@ const AdminIndicatorDetail: React.FC = () => {
 
               <div className="p-5 bg-white rounded-2xl border border-gray-100 shadow-sm">
                 <h4 className="text-[10px] font-black text-[#8c94a4] uppercase mb-4 tracking-wider">
-                  Exhibits for Review
+                  Submitted Exhibits
                 </h4>
 
                 {indicator.evidence.length > 0 ? (
@@ -215,28 +188,20 @@ const AdminIndicatorDetail: React.FC = () => {
                     {indicator.evidence.map((file) => (
                       <li
                         key={file.publicId}
-                        className="flex items-center justify-between group"
+                        className="flex items-center gap-3 p-2 rounded-lg bg-gray-50"
                       >
-                        <div className="flex items-center gap-2 overflow-hidden">
-                          <FileCheck
-                            size={16}
-                            className="text-[#c2a336] flex-shrink-0"
-                          />
-                          <span className="text-sm font-bold truncate text-[#1a3a32]">
+                        <FileCheck
+                          size={16}
+                          className="text-[#c2a336] flex-shrink-0"
+                        />
+                        <div className="overflow-hidden">
+                          <p className="text-sm font-bold truncate text-[#1a3a32]">
                             {file.fileName}
-                          </span>
+                          </p>
+                          <p className="text-[10px] text-gray-400 uppercase">
+                            {file.format} • {(file.fileSize / 1024).toFixed(1)} KB
+                          </p>
                         </div>
-                        <button
-                          onClick={() => handleDownload(file)}
-                          disabled={downloadingId === file.publicId}
-                          className="p-2 hover:bg-[#f4f0e6] rounded-full text-[#c2a336] transition-colors disabled:opacity-50"
-                        >
-                          {downloadingId === file.publicId ? (
-                            <Loader2 size={16} className="animate-spin" />
-                          ) : (
-                            <Download size={16} />
-                          )}
-                        </button>
                       </li>
                     ))}
                   </ul>
@@ -256,7 +221,7 @@ const AdminIndicatorDetail: React.FC = () => {
                     Read-Only Audit Mode
                   </p>
                   <p className="text-[10px] text-[#8c94a4] mt-1 font-medium italic">
-                    Record status and progress are locked in this view.
+                    Registry records are locked in this view.
                   </p>
                 </div>
               </div>
@@ -268,14 +233,18 @@ const AdminIndicatorDetail: React.FC = () => {
             <div className="space-y-4">
               {indicator.notes.length > 0 ? (
                 <div className="space-y-4">
-                  {indicator.notes.map((note: any, idx: number) => (
+                  {indicator.notes.map((note, idx) => (
                     <div
                       key={idx}
-                      className="p-4 bg-white rounded-xl border-l-4 border-[#c2a336] shadow-sm"
+                      className="p-4 bg-white rounded-xl border-l-4 border-[#c2a336] shadow-sm space-y-2"
                     >
                       <p className="text-sm text-gray-600 leading-relaxed italic">
-                        "{typeof note === "string" ? note : note.text}"
+                        "{note.text}"
                       </p>
+                      <div className="flex justify-between items-center text-[9px] font-black text-[#8c94a4] uppercase tracking-tighter">
+                        <span>{getUserName(note.createdBy)}</span>
+                        <span>{new Date(note.createdAt).toLocaleDateString()}</span>
+                      </div>
                     </div>
                   ))}
                 </div>
