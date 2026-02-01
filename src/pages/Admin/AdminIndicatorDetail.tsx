@@ -1,4 +1,4 @@
-// src/pages/Admin/SubmittedIndicatorDetail.tsx
+// src/pages/Admin/AdminIndicatorDetail.tsx
 import React, { useEffect, useMemo } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { useAppDispatch, useAppSelector } from "../../store/hooks";
@@ -7,11 +7,16 @@ import {
   selectAllIndicators,
   selectIndicatorsLoading,
 } from "../../store/slices/indicatorsSlice";
-import { fetchUsers, selectAllUsers } from "../../store/slices/userSlice";
+import {
+  fetchUsers,
+  selectAllUsers,
+  type IUser,
+} from "../../store/slices/userSlice";
 import {
   Loader2,
   ChevronLeft,
   User as UserIcon,
+  Users as GroupIcon,
   FileText,
   Activity,
   Info,
@@ -48,10 +53,28 @@ const AdminIndicatorDetail: React.FC = () => {
   /* =====================================
       HELPERS
   ===================================== */
-  const getUserName = (userId: string | null) => {
-    if (!userId) return "Unassigned";
-    const user = users.find((u) => u._id === userId);
-    return user?.name ?? "System Official";
+  const getUserName = (userId: string | null): string => {
+    if (!userId) return "System Official";
+    const user = users.find((u: IUser) => u._id === userId);
+    return user?.name ?? "Unknown Official";
+  };
+
+  const renderCustodians = (): string => {
+    if (!indicator) return "-";
+
+    if (indicator.assignedToType === "individual") {
+      return getUserName(indicator.assignedTo);
+    }
+
+    if (indicator.assignedToType === "group") {
+      const groupNames = (indicator.assignedGroup || [])
+        .map((id: string) => users.find((u: IUser) => u._id === id)?.name)
+        .filter(Boolean);
+
+      return groupNames.length > 0 ? groupNames.join(", ") : "Assigned Group";
+    }
+
+    return "Unassigned";
   };
 
   /* =====================================
@@ -109,7 +132,7 @@ const AdminIndicatorDetail: React.FC = () => {
               </span>
               <span
                 className={`px-3 py-1 rounded-full text-[10px] font-black uppercase border ${getStatusStyles(
-                  indicator.status
+                  indicator.status,
                 )}`}
               >
                 {indicator.status}
@@ -138,13 +161,19 @@ const AdminIndicatorDetail: React.FC = () => {
           {/* Section 1: Context */}
           <Section title="Assignment Context">
             <DetailItem
-              icon={<UserIcon size={18} />}
-              label="Primary Custodian"
-              value={
-                indicator.assignedToType === "individual"
-                  ? getUserName(indicator.assignedTo)
-                  : "Group Assignment"
+              icon={
+                indicator.assignedToType === "group" ? (
+                  <GroupIcon size={18} />
+                ) : (
+                  <UserIcon size={18} />
+                )
               }
+              label={
+                indicator.assignedToType === "group"
+                  ? "Group Custodians"
+                  : "Primary Custodian"
+              }
+              value={renderCustodians()}
             />
             <DetailItem
               icon={<Clock size={18} />}
@@ -199,7 +228,8 @@ const AdminIndicatorDetail: React.FC = () => {
                             {file.fileName}
                           </p>
                           <p className="text-[10px] text-gray-400 uppercase">
-                            {file.format} • {(file.fileSize / 1024).toFixed(1)} KB
+                            {file.mimeType} •{" "}
+                            {(file.fileSize / 1024).toFixed(1)} KB
                           </p>
                         </div>
                       </li>
@@ -243,7 +273,9 @@ const AdminIndicatorDetail: React.FC = () => {
                       </p>
                       <div className="flex justify-between items-center text-[9px] font-black text-[#8c94a4] uppercase tracking-tighter">
                         <span>{getUserName(note.createdBy)}</span>
-                        <span>{new Date(note.createdAt).toLocaleDateString()}</span>
+                        <span>
+                          {new Date(note.createdAt).toLocaleDateString()}
+                        </span>
                       </div>
                     </div>
                   ))}
@@ -295,7 +327,9 @@ const DetailItem = ({
       <p className="text-[10px] font-bold text-[#8c94a4] uppercase tracking-tight">
         {label}
       </p>
-      <p className="text-sm font-black text-[#1a3a32]">{value}</p>
+      <p className="text-sm font-black text-[#1a3a32] whitespace-pre-wrap">
+        {value}
+      </p>
     </div>
   </div>
 );
@@ -303,6 +337,7 @@ const DetailItem = ({
 const getStatusStyles = (status: string) => {
   switch (status.toLowerCase()) {
     case "approved":
+    case "completed":
       return "bg-emerald-500/20 border-emerald-500/50 text-emerald-100";
     case "submitted":
       return "bg-blue-500/20 border-blue-500/50 text-blue-100";

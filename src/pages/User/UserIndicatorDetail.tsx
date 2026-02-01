@@ -64,12 +64,20 @@ const UserIndicatorDetail: React.FC = () => {
     return () => clearInterval(t);
   }, []);
 
-  const handleFileChange = (files: FileList | null) => {
-    if (!files) return;
-    const arr = Array.from(files);
-    setSelectedFiles((prev) => [...prev, ...arr]);
-    setDescriptions((prev) => [...prev, ...arr.map(() => "")]);
-  };
+const MAX_SIZE = 5 * 1024 * 1024; // 5MB
+
+const handleFileChange = (files: FileList | null) => {
+  if (!files) return;
+  const arr = Array.from(files);
+  
+  const overlyLarge = arr.find(f => f.size > MAX_SIZE);
+  if (overlyLarge) {
+    return toast.error(`${overlyLarge.name} exceeds the 5MB limit.`);
+  }
+
+  setSelectedFiles((prev) => [...prev, ...arr]);
+  setDescriptions((prev) => [...prev, ...arr.map(() => "")]);
+};
 
   const removeFile = (index: number) => {
     setSelectedFiles((prev) => prev.filter((_, i) => i !== index));

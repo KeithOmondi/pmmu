@@ -1,14 +1,16 @@
-// src/store/slices/indicatorsSlice.ts
-import { createSlice, createAsyncThunk } from "@reduxjs/toolkit";
+import {
+  createSlice,
+  createAsyncThunk,
+  type PayloadAction,
+} from "@reduxjs/toolkit";
 import type { RootState } from "../store";
 import api from "../../api/axios";
 import { addNotification } from "./notificationsSlice";
 import type { AxiosError } from "axios";
 
 /* =====================================================
-   DOMAIN TYPES
+    DOMAIN & PAYLOAD TYPES
 ===================================================== */
-
 export type IndicatorStatus =
   | "pending"
   | "submitted"
@@ -68,10 +70,6 @@ export interface IIndicator {
   updatedAt: string;
 }
 
-/* =====================================================
-   PAYLOAD TYPES
-===================================================== */
-
 export interface CreateIndicatorPayload {
   categoryId: string;
   level2CategoryId: string;
@@ -102,59 +100,20 @@ export interface UpdateProgressPayload {
 }
 
 /* =====================================================
-   HELPERS
+    HELPERS
 ===================================================== */
-
 const normalizeIndicator = (raw: any): IIndicator => ({
-  _id: raw._id,
+  ...raw,
   indicatorTitle: raw.indicatorTitle ?? "",
-  category: raw.category ?? null,
-  level2Category: raw.level2Category ?? null,
-  unitOfMeasure: raw.unitOfMeasure ?? "",
-  assignedToType: raw.assignedToType ?? "individual",
   assignedTo: raw.assignedTo?._id ?? raw.assignedTo ?? null,
   assignedGroup: Array.isArray(raw.assignedGroup)
     ? raw.assignedGroup.map((g: any) => g._id ?? g)
     : [],
-  startDate: raw.startDate ?? "",
-  dueDate: raw.dueDate ?? "",
-  progress: raw.progress ?? 0,
-  status: raw.status ?? "pending",
-  rejectionCount: raw.rejectionCount ?? 0,
-  result: raw.result ?? null,
-  notes: Array.isArray(raw.notes)
-    ? raw.notes.map((n: any) => ({
-        text: n.text ?? "",
-        createdBy: n.createdBy?._id ?? n.createdBy ?? null,
-        createdAt: n.createdAt ?? new Date().toISOString(),
-      }))
-    : [],
-  evidence: Array.isArray(raw.evidence)
-    ? raw.evidence.map((e: any) => ({
-        type: "file",
-        fileName: e.fileName ?? "",
-        fileSize: e.fileSize ?? 0,
-        mimeType: e.mimeType ?? "application/octet-stream",
-        publicId: e.publicId,
-        resourceType: e.resourceType,
-        cloudinaryType: e.cloudinaryType,
-        format: e.format,
-        previewUrl: e.previewUrl,
-        description: e.description,
-      }))
-    : [],
-  createdBy: raw.createdBy?._id ?? raw.createdBy ?? null,
-  reviewedBy: raw.reviewedBy?._id ?? raw.reviewedBy ?? null,
-  reviewedAt: raw.reviewedAt ?? null,
-  calendarEvent: raw.calendarEvent ?? null,
-  createdAt: raw.createdAt ?? "",
-  updatedAt: raw.updatedAt ?? "",
-});
-
-const normalizeCreatePayload = (p: CreateIndicatorPayload) => ({
-  ...p,
-  assignedTo: p.assignedTo || null,
-  assignedGroup: Array.isArray(p.assignedGroup) ? p.assignedGroup : [],
+  notes: (raw.notes || []).map((n: any) => ({
+    ...n,
+    createdBy: n.createdBy?._id ?? n.createdBy ?? null,
+  })),
+  evidence: (raw.evidence || []).map((e: any) => ({ ...e, type: "file" })),
 });
 
 const handleError = (err: unknown, fallback: string) => {
@@ -168,23 +127,28 @@ const handleError = (err: unknown, fallback: string) => {
 const updateList = (list: IIndicator[], updated: IIndicator) =>
   list.map((i) => (i._id === updated._id ? updated : i));
 
+const createNotif = (title: string, message: string) => ({
+  _id: `notif-${Date.now()}`,
+  title,
+  message,
+  read: false,
+  createdAt: new Date().toISOString(),
+});
+
 /* =====================================================
-   THUNKS
+    THUNKS
 ===================================================== */
 
-export const createIndicator = createAsyncThunk<
-  IIndicator,
-  CreateIndicatorPayload,
+export const fetchAllIndicatorsForAdmin = createAsyncThunk<
+  IIndicator[],
+  void,
   { rejectValue: string }
->("indicators/create", async (payload, { rejectWithValue }) => {
+>("indicators/all", async (_, { rejectWithValue }) => {
   try {
-    const { data } = await api.post(
-      "/indicators/create",
-      normalizeCreatePayload(payload),
-    );
-    return normalizeIndicator(data.indicator);
+    const { data } = await api.get("/indicators/all");
+    return data.indicators.map(normalizeIndicator);
   } catch (err) {
-    return rejectWithValue(handleError(err, "Creation failed"));
+    return rejectWithValue(handleError(err, "Fetch failed"));
   }
 });
 
@@ -195,19 +159,6 @@ export const fetchUserIndicators = createAsyncThunk<
 >("indicators/my", async (_, { rejectWithValue }) => {
   try {
     const { data } = await api.get("/indicators/my");
-    return data.indicators.map(normalizeIndicator);
-  } catch (err) {
-    return rejectWithValue(handleError(err, "Fetch failed"));
-  }
-});
-
-export const fetchAllIndicatorsForAdmin = createAsyncThunk<
-  IIndicator[],
-  void,
-  { rejectValue: string }
->("indicators/all", async (_, { rejectWithValue }) => {
-  try {
-    const { data } = await api.get("/indicators/all");
     return data.indicators.map(normalizeIndicator);
   } catch (err) {
     return rejectWithValue(handleError(err, "Fetch failed"));
@@ -227,49 +178,71 @@ export const fetchSubmittedIndicators = createAsyncThunk<
   }
 });
 
-export const submitIndicatorEvidence = createAsyncThunk<
+export const createIndicator = createAsyncThunk<
   IIndicator,
-  SubmitEvidencePayload,
+  CreateIndicatorPayload,
+  { rejectValue: string }
+>("indicators/create", async (payload, { dispatch, rejectWithValue }) => {
+  try {
+    const { data } = await api.post("/indicators/create", payload);
+    const indicator = normalizeIndicator(data.indicator);
+    dispatch(
+      addNotification(
+        createNotif("Success", "Indicator created successfully."),
+      ),
+    );
+    return indicator;
+  } catch (err) {
+    return rejectWithValue(handleError(err, "Creation failed"));
+  }
+});
+
+export const updateIndicator = createAsyncThunk<
+  IIndicator,
+  UpdateIndicatorPayload,
   { rejectValue: string }
 >(
-  "indicators/submit",
-  async ({ id, files, descriptions = [] }, { dispatch, rejectWithValue }) => {
+  "indicators/update",
+  async ({ id, updates }, { dispatch, rejectWithValue }) => {
     try {
-      const form = new FormData();
-      files.forEach((f) => form.append("files", f));
-      descriptions.forEach((d) => form.append("descriptions", d));
-
-      const { data } = await api.post(`/indicators/submit/${id}`, form, {
-        headers: { "Content-Type": "multipart/form-data" },
-      });
-
+      const { data } = await api.put(`/indicators/update/${id}`, updates);
       const indicator = normalizeIndicator(data.indicator);
-
       dispatch(
-        addNotification({
-          _id: `notif-${Date.now()}`,
-          title: "Evidence Uploaded",
-          message: indicator.indicatorTitle,
-          read: false,
-          createdAt: new Date().toISOString(),
-        }),
+        addNotification(
+          createNotif("Success", "Registry record updated successfully."),
+        ),
       );
-
       return indicator;
-    } catch (err) {
-      return rejectWithValue(handleError(err, "Submission failed"));
+    } catch (err: any) {
+      return rejectWithValue(handleError(err, "Update failed"));
     }
   },
 );
 
 export const approveIndicator = createAsyncThunk<
   IIndicator,
-  string,
+  { id: string; notes?: string }, // Change from string to object
   { rejectValue: string }
->("indicators/approve", async (id, { rejectWithValue }) => {
+>("indicators/approve", async ({ id, notes }, { dispatch, rejectWithValue }) => {
   try {
-    const { data } = await api.put(`/indicators/approve/${id}`);
-    return normalizeIndicator(data.indicator);
+    // We pass { notes } as the second argument to create the request body
+    const { data } = await api.put(`/indicators/approve/${id}`, { notes });
+    
+    const indicator = normalizeIndicator(data.indicator);
+    const isFinal = indicator.status === "completed";
+    
+    dispatch(
+      addNotification(
+        createNotif(
+          isFinal ? "Finalized" : "Verified",
+          isFinal
+            ? "Record archived as completed."
+            : "Record verified; pending ratification.",
+        ),
+      ),
+    );
+    
+    return indicator;
   } catch (err) {
     return rejectWithValue(handleError(err, "Approval failed"));
   }
@@ -279,12 +252,33 @@ export const rejectIndicator = createAsyncThunk<
   IIndicator,
   { id: string; notes: string },
   { rejectValue: string }
->("indicators/reject", async ({ id, notes }, { rejectWithValue }) => {
+>("indicators/reject", async ({ id, notes }, { dispatch, rejectWithValue }) => {
   try {
     const { data } = await api.put(`/indicators/reject/${id}`, { notes });
+    dispatch(
+      addNotification(createNotif("Returned", "Sent back for corrections.")),
+    );
     return normalizeIndicator(data.indicator);
   } catch (err) {
     return rejectWithValue(handleError(err, "Rejection failed"));
+  }
+});
+
+export const deleteIndicator = createAsyncThunk<
+  string,
+  string,
+  { rejectValue: string }
+>("indicators/delete", async (id, { dispatch, rejectWithValue }) => {
+  try {
+    await api.delete(`/indicators/delete/${id}`);
+    dispatch(
+      addNotification(
+        createNotif("Purged", "Indicator removed from registry."),
+      ),
+    );
+    return id;
+  } catch (err) {
+    return rejectWithValue(handleError(err, "Deletion failed"));
   }
 });
 
@@ -303,23 +297,57 @@ export const updateIndicatorProgress = createAsyncThunk<
   }
 });
 
-export const updateIndicator = createAsyncThunk<
+export const submitIndicatorEvidence = createAsyncThunk<
   IIndicator,
-  UpdateIndicatorPayload,
+  SubmitEvidencePayload,
   { rejectValue: string }
->("indicators/update", async ({ id, updates }, { rejectWithValue }) => {
-  try {
-    const { data } = await api.put(`/indicators/update/${id}`, updates);
-    return normalizeIndicator(data.indicator);
-  } catch (err) {
-    return rejectWithValue(handleError(err, "Update failed"));
+>(
+  "indicators/submit",
+  async ({ id, files, descriptions = [] }, { dispatch, rejectWithValue }) => {
+    try {
+      const form = new FormData();
+
+      // 1. Append Text Fields (descriptions)
+      // These will land in req.body.descriptions on the backend
+      descriptions.forEach((d) => {
+        form.append("descriptions", d);
+      });
+
+      // 2. Append Binary Files
+      // These will land in req.files on the backend
+      files.forEach((f) => {
+        form.append("files", f);
+      });
+
+      // 3. API Call with Header Override
+      // We set Content-Type to undefined to override the global application/json default.
+      // This allows the browser to correctly set 'multipart/form-data' PLUS the 
+      // essential 'boundary' string required by Multer.
+      const { data } = await api.post(`/indicators/submit/${id}`, form, {
+        headers: {
+          "Content-Type": undefined,
+        },
+      });
+
+      // Trigger local notification
+      dispatch(
+        addNotification(
+          createNotif("Evidence Logged", "Files uploaded successfully.")
+        )
+      );
+
+      // Return the normalized indicator to update the Redux state
+      return normalizeIndicator(data.indicator);
+    } catch (err: any) {
+      const message = err.response?.data?.message || "Submission failed";
+      return rejectWithValue(message);
+    }
   }
-});
+);
 
 /* =====================================================
-   SLICE
+    SLICE
 ===================================================== */
-
 interface IndicatorState {
   userIndicators: IIndicator[];
   allIndicators: IIndicator[];
@@ -327,7 +355,6 @@ interface IndicatorState {
   loading: boolean;
   submittingEvidence: boolean;
   error: string | null;
-  successMessage: string | null;
 }
 
 const initialState: IndicatorState = {
@@ -337,87 +364,117 @@ const initialState: IndicatorState = {
   loading: false,
   submittingEvidence: false,
   error: null,
-  successMessage: null,
 };
 
 const indicatorSlice = createSlice({
   name: "indicators",
   initialState,
   reducers: {
-    clearMessages(state) {
+    clearMessages: (state) => {
       state.error = null;
-      state.successMessage = null;
     },
   },
   extraReducers: (builder) => {
     builder
-      .addCase(fetchUserIndicators.fulfilled, (s, a) => {
-        s.userIndicators = a.payload;
+      /* FETCH HANDLERS */
+      .addCase(fetchAllIndicatorsForAdmin.fulfilled, (state, action) => {
+        state.allIndicators = action.payload;
       })
-      .addCase(fetchAllIndicatorsForAdmin.fulfilled, (s, a) => {
-        s.allIndicators = a.payload;
+      .addCase(fetchUserIndicators.fulfilled, (state, action) => {
+        state.userIndicators = action.payload;
       })
-      .addCase(fetchSubmittedIndicators.fulfilled, (s, a) => {
-        s.submittedIndicators = a.payload;
+      .addCase(fetchSubmittedIndicators.fulfilled, (state, action) => {
+        state.submittedIndicators = action.payload;
       })
-      .addCase(createIndicator.fulfilled, (s, a) => {
-        s.allIndicators.unshift(a.payload);
+
+      /* CREATE HANDLER */
+      .addCase(createIndicator.fulfilled, (state, action) => {
+        state.allIndicators = [action.payload, ...state.allIndicators];
       })
-      .addCase(updateIndicator.fulfilled, (s, a) => {
-        s.allIndicators = updateList(s.allIndicators, a.payload);
-        s.userIndicators = updateList(s.userIndicators, a.payload);
-        s.submittedIndicators = updateList(s.submittedIndicators, a.payload);
+
+      /* DELETE HANDLER */
+      .addCase(deleteIndicator.fulfilled, (state, action) => {
+        const id = action.payload;
+        state.allIndicators = state.allIndicators.filter((i) => i._id !== id);
+        state.userIndicators = state.userIndicators.filter((i) => i._id !== id);
+        state.submittedIndicators = state.submittedIndicators.filter(
+          (i) => i._id !== id,
+        );
       })
-      .addCase(submitIndicatorEvidence.pending, (s) => {
-        s.submittingEvidence = true;
+
+      /* EVIDENCE LOADING STATE */
+      .addCase(submitIndicatorEvidence.pending, (state) => {
+        state.submittingEvidence = true;
       })
-      .addCase(submitIndicatorEvidence.fulfilled, (s, a) => {
-        s.submittingEvidence = false;
-        s.userIndicators = updateList(s.userIndicators, a.payload);
-        s.allIndicators = updateList(s.allIndicators, a.payload);
-        s.submittedIndicators = updateList(s.submittedIndicators, a.payload);
+      .addCase(submitIndicatorEvidence.fulfilled, (state, action) => {
+        state.submittingEvidence = false;
+        state.allIndicators = updateList(state.allIndicators, action.payload);
+        state.userIndicators = updateList(state.userIndicators, action.payload);
+        state.submittedIndicators = updateList(
+          state.submittedIndicators,
+          action.payload,
+        );
       })
-      .addCase(submitIndicatorEvidence.rejected, (s, a) => {
-        s.submittingEvidence = false;
-        s.error = a.payload ?? "Submission failed";
+      .addCase(submitIndicatorEvidence.rejected, (state) => {
+        state.submittingEvidence = false;
       })
+
+      /* UNIFIED UPDATER (MATCHERS) */
       .addMatcher(
-        (a) => a.type.endsWith("/pending"),
-        (s) => {
-          s.loading = true;
-          s.error = null;
+        (action): action is PayloadAction<IIndicator> =>
+          action.type.endsWith("/update/fulfilled") ||
+          action.type.endsWith("/approve/fulfilled") ||
+          action.type.endsWith("/reject/fulfilled") ||
+          action.type.endsWith("/progress/fulfilled"),
+        (state, action) => {
+          state.allIndicators = updateList(state.allIndicators, action.payload);
+          state.userIndicators = updateList(
+            state.userIndicators,
+            action.payload,
+          );
+          state.submittedIndicators = updateList(
+            state.submittedIndicators,
+            action.payload,
+          );
         },
       )
+
+      /* GLOBAL PENDING */
       .addMatcher(
-        (a) => a.type.endsWith("/fulfilled"),
-        (s) => {
-          s.loading = false;
+        (action) =>
+          action.type.endsWith("/pending") && !action.type.includes("submit"),
+        (state) => {
+          state.loading = true;
+          state.error = null;
         },
       )
+
+      /* GLOBAL FINISHED */
       .addMatcher(
-        (a) => a.type.endsWith("/rejected"),
-        (s, a: any) => {
-          s.loading = false;
-          s.error = a.payload ?? "Unexpected error";
+        (action) =>
+          action.type.endsWith("/fulfilled") ||
+          action.type.endsWith("/rejected"),
+        (state, action: any) => {
+          state.loading = false;
+          if (action.type.endsWith("/rejected")) {
+            state.error = action.payload || "An unexpected error occurred";
+          }
         },
       );
   },
 });
 
-/* =====================================================
-   EXPORTS
-===================================================== */
-
 export const { clearMessages } = indicatorSlice.actions;
 
+/* SELECTORS */
 export const selectUserIndicators = (s: RootState) =>
   s.indicators.userIndicators;
 export const selectAllIndicators = (s: RootState) => s.indicators.allIndicators;
 export const selectSubmittedIndicators = (s: RootState) =>
   s.indicators.submittedIndicators;
 export const selectIndicatorsLoading = (s: RootState) => s.indicators.loading;
+export const selectIndicatorsError = (s: RootState) => s.indicators.error;
 export const selectSubmittingEvidence = (s: RootState) =>
   s.indicators.submittingEvidence;
-export const selectIndicatorsError = (s: RootState) => s.indicators.error;
 
 export default indicatorSlice.reducer;

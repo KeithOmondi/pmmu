@@ -2,11 +2,6 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { useAppDispatch, useAppSelector } from "../../store/hooks";
 import {
-  fetchUsers,
-  selectAllUsers,
-  type IUser,
-} from "../../store/slices/userSlice";
-import {
   fetchAllIndicatorsForAdmin,
   updateIndicator,
   type IIndicator,
@@ -21,11 +16,18 @@ import {
   X,
   FileText,
   Calendar,
-  FileCheck,
   ChevronRight,
   Database,
+  AlertCircle,
+  Clock,
 } from "lucide-react";
 import toast from "react-hot-toast";
+import {
+  fetchUsers,
+  selectAllUsers,
+  type IUser,
+} from "../../store/slices/userSlice";
+import EvidencePreviewModal from "../User/EvidencePreviewModal";
 
 /* ===================================== HELPERS ===================================== */
 const formatDuration = (ms: number) => {
@@ -42,14 +44,12 @@ const formatDuration = (ms: number) => {
 
 const SuperAdminApproved: React.FC = () => {
   const dispatch = useAppDispatch();
-  
-  // Selection aligned with IndicatorState.allIndicators
   const indicators = useAppSelector((state) => state.indicators.allIndicators);
   const allUsers = useAppSelector(selectAllUsers) as IUser[];
 
   const [processingId, setProcessingId] = useState<string | null>(null);
   const [selectedIndicator, setSelectedIndicator] = useState<IIndicator | null>(
-    null
+    null,
   );
 
   useEffect(() => {
@@ -60,25 +60,20 @@ const SuperAdminApproved: React.FC = () => {
   const reviewIndicators = useMemo(
     () =>
       indicators.filter(
-        (i) => i.status === "approved" || i.status === "completed"
+        (i) => i.status === "approved" || i.status === "completed",
       ),
-    [indicators]
+    [indicators],
   );
 
   const isCompleted = (indicator: IIndicator) =>
     indicator.status === "completed";
 
   const getAssignedName = (indicator: IIndicator) => {
-    // Aligned with slice AssignedToType: "individual" | "group"
     if (indicator.assignedToType === "group") return "Department Group";
-
     const assignedData = indicator.assignedTo;
     if (!assignedData) return "Unassigned";
-
-    // Handle populated object or string ID
     if (typeof assignedData === "object" && assignedData !== null)
       return (assignedData as any).name || "Unknown User";
-
     const foundUser = allUsers.find((u) => u._id === assignedData);
     return foundUser ? foundUser.name : "System User";
   };
@@ -86,21 +81,18 @@ const SuperAdminApproved: React.FC = () => {
   const handleReview = async (indicator: IIndicator, approve: boolean) => {
     try {
       setProcessingId(indicator._id);
-      
-      // Using updateIndicator thunk to flip status
-      // Ratify -> completed | Return -> approved (stays in this list but needs re-verification)
       await dispatch(
         updateIndicator({
           id: indicator._id,
-          updates: { 
+          updates: {
             status: approve ? "completed" : "approved",
-            reviewedAt: new Date().toISOString() 
+            reviewedAt: new Date().toISOString(),
           },
-        })
+        }),
       ).unwrap();
 
       toast.success(
-        approve ? "Protocol Ratified & Locked" : "Returned for Further Review"
+        approve ? "Protocol Ratified & Locked" : "Returned for Further Review",
       );
       setSelectedIndicator(null);
     } catch (err: any) {
@@ -127,7 +119,6 @@ const SuperAdminApproved: React.FC = () => {
               Authorize and finalize submitted compliance records.
             </p>
           </div>
-
           <div className="relative group">
             <div className="absolute -inset-1 bg-gradient-to-r from-[#c2a336] to-[#1a3a32] rounded-3xl blur opacity-25 group-hover:opacity-50 transition duration-1000"></div>
             <div className="relative bg-white px-8 py-5 rounded-2xl flex items-center gap-6 border border-white/20 shadow-xl">
@@ -139,7 +130,10 @@ const SuperAdminApproved: React.FC = () => {
                   {reviewIndicators.length.toString().padStart(2, "0")}
                 </p>
               </div>
-              <ShieldCheck className="text-[#c2a336] drop-shadow-sm" size={32} />
+              <ShieldCheck
+                className="text-[#c2a336] drop-shadow-sm"
+                size={32}
+              />
             </div>
           </div>
         </div>
@@ -163,7 +157,11 @@ const SuperAdminApproved: React.FC = () => {
                       : "bg-slate-100 text-[#1a3a32] group-hover:bg-[#1a3a32] group-hover:text-white"
                   }`}
                 >
-                  {isCompleted(i) ? <CheckCircle2 size={24} /> : <FileText size={24} />}
+                  {isCompleted(i) ? (
+                    <CheckCircle2 size={24} />
+                  ) : (
+                    <FileText size={24} />
+                  )}
                 </div>
                 <div>
                   <h4 className="font-extrabold text-[#1a3a32] text-lg leading-tight transition-colors group-hover:text-[#c2a336]">
@@ -183,25 +181,32 @@ const SuperAdminApproved: React.FC = () => {
 
               <div className="flex items-center gap-4">
                 <div className="hidden sm:flex flex-col items-end px-4 border-l border-gray-100">
-                  <span className="text-[9px] font-black text-gray-400 uppercase">Phase</span>
-                  <span className={`text-[11px] font-black uppercase ${i.status === "completed" ? "text-emerald-600" : "text-blue-600"}`}>
+                  <span className="text-[9px] font-black text-gray-400 uppercase">
+                    Phase
+                  </span>
+                  <span
+                    className={`text-[11px] font-black uppercase ${i.status === "completed" ? "text-emerald-600" : "text-blue-600"}`}
+                  >
                     {i.status}
                   </span>
                 </div>
-
                 <button
                   onClick={() => setSelectedIndicator(i)}
                   className="p-4 text-gray-400 hover:text-[#1a3a32] hover:bg-gray-100 rounded-2xl transition-all"
                 >
                   <Eye size={22} />
                 </button>
-
                 <button
                   disabled={!!processingId || isCompleted(i)}
                   onClick={() => handleReview(i, true)}
                   className="px-8 py-3.5 bg-[#1a3a32] text-white text-xs font-black uppercase tracking-widest rounded-2xl hover:bg-[#c2a336] transition-all disabled:opacity-30 flex items-center gap-2"
                 >
-                  {processingId === i._id ? <Loader2 className="animate-spin" size={14} /> : "Ratify"} <ChevronRight size={14} />
+                  {processingId === i._id ? (
+                    <Loader2 className="animate-spin" size={14} />
+                  ) : (
+                    "Ratify"
+                  )}{" "}
+                  <ChevronRight size={14} />
                 </button>
               </div>
             </div>
@@ -230,7 +235,7 @@ const SuperAdminApproved: React.FC = () => {
   );
 };
 
-/* --- AUDIT MODAL --- */
+/* --- AUDIT MODAL COMPONENT --- */
 const AuditModal = ({
   indicator,
   onClose,
@@ -244,6 +249,9 @@ const AuditModal = ({
   processingId: string | null;
   assignedName: string;
 }) => {
+  // NEW: State for the file preview
+  const [previewFile, setPreviewFile] = useState<IEvidence | null>(null);
+
   const compliance = useMemo(() => {
     if (!indicator.evidence?.length) return { status: "none" };
     const dueTime = new Date(indicator.dueDate).getTime();
@@ -262,99 +270,206 @@ const AuditModal = ({
   }, [indicator]);
 
   return (
-    <div className="fixed inset-0 z-[1100] flex items-center justify-center p-4 sm:p-6">
-      <div className="absolute inset-0 bg-[#0a1a16]/80 backdrop-blur-md" onClick={onClose} />
+    <>
+      <div className="fixed inset-0 z-[1100] flex items-center justify-center p-4 sm:p-6">
+        <div
+          className="absolute inset-0 bg-[#0a1a16]/90 backdrop-blur-sm animate-in fade-in duration-500"
+          onClick={onClose}
+        />
 
-      <div className="relative bg-white w-full max-w-2xl rounded-[3rem] overflow-hidden shadow-2xl transition-all animate-in fade-in zoom-in duration-300">
-        <div className="bg-[#1a3a32] p-10 text-white relative">
-          <div className="relative z-10 flex justify-between items-start">
-            <div className="space-y-2">
-              <div className="flex items-center gap-2 text-[#c2a336] font-black uppercase tracking-widest text-[10px]">
-                <ShieldCheck size={16} /> Secure Verification Desk
+        <div className="relative bg-[#fdfdfd] w-full max-w-2xl rounded-[2.5rem] overflow-hidden shadow-[0_32px_64px_-15px_rgba(0,0,0,0.5)] transition-all animate-in zoom-in-95 duration-300 border border-white/20">
+          <div className="bg-[#1a3a32] px-10 py-12 text-white relative overflow-hidden">
+            <Gavel className="absolute -right-4 -bottom-4 text-white/5 w-32 h-32 rotate-12" />
+            <div className="relative z-10 flex justify-between items-start">
+              <div className="space-y-3">
+                <div className="inline-flex items-center gap-2 px-3 py-1 bg-[#c2a336]/20 border border-[#c2a336]/30 rounded-full text-[#c2a336] font-black uppercase tracking-[0.2em] text-[9px]">
+                  <ShieldCheck size={12} /> Secure Verification Desk
+                </div>
+                <h3 className="text-3xl font-serif font-black leading-tight tracking-tight">
+                  {indicator.indicatorTitle}
+                </h3>
               </div>
-              <h3 className="text-3xl font-black leading-tight">{indicator.indicatorTitle}</h3>
+              <button
+                onClick={onClose}
+                className="p-3 bg-white/5 hover:bg-white/10 rounded-2xl border border-white/10 transition-colors"
+              >
+                <X size={20} />
+              </button>
             </div>
-            <button onClick={onClose} className="p-3 bg-white/10 hover:bg-white/20 rounded-2xl">
-              <X size={24} />
-            </button>
           </div>
-        </div>
 
-        <div className="p-10 space-y-8 max-h-[60vh] overflow-y-auto bg-slate-50/30">
-          {/* STATS GRID */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div className="p-5 bg-white rounded-[2rem] border border-gray-100 shadow-sm">
-              <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-3">Compliance Health</p>
-              {compliance.status === "none" ? (
-                <p className="text-xs font-bold text-gray-400 italic">No Registry Data</p>
+          <div className="p-10 space-y-8 max-h-[65vh] overflow-y-auto custom-scrollbar">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+              <div className="group p-6 bg-white rounded-3xl border border-slate-200 shadow-sm transition-all hover:border-[#c2a336]/30">
+                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-4">
+                  Compliance Health
+                </p>
+                {compliance.status === "none" ? (
+                  <div className="flex items-center gap-2 text-slate-300 italic text-sm">
+                    <AlertCircle size={16} /> No Registry Data
+                  </div>
+                ) : (
+                  <div
+                    className={`flex flex-col gap-1 ${compliance.early ? "text-emerald-600" : "text-rose-600"}`}
+                  >
+                    <div className="flex items-center gap-2 font-black text-lg">
+                      {compliance.early ? (
+                        <CheckCircle2 size={20} />
+                      ) : (
+                        <Clock size={20} />
+                      )}
+                      <span>{compliance.label}</span>
+                    </div>
+                    <span className="text-[10px] uppercase font-bold opacity-70">
+                      Submission {compliance.early ? "Ahead" : "Past Due"}
+                    </span>
+                  </div>
+                )}
+              </div>
+
+              <div className="p-6 bg-slate-900 rounded-3xl text-white shadow-inner">
+                <p className="text-[10px] font-black text-[#c2a336] uppercase tracking-widest mb-4">
+                  Registry Timestamp
+                </p>
+                <div className="flex flex-col gap-1">
+                  <div className="flex items-center gap-2 text-lg font-bold">
+                    <Calendar size={20} className="text-[#c2a336]" />
+                    <span>
+                      {new Date(indicator.updatedAt).toLocaleDateString(
+                        "en-GB",
+                        { day: "2-digit", month: "long", year: "numeric" },
+                      )}
+                    </span>
+                  </div>
+                  <span className="text-[10px] uppercase font-bold text-white/40">
+                    Last Modification Date
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            {/* ATTRIBUTION SECTION */}
+            <div className="grid grid-cols-2 gap-4 py-6 border-y border-slate-100">
+              <div className="px-2">
+                <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">
+                  Architecture
+                </p>
+                <p className="text-sm font-bold text-[#1a3a32] truncate">
+                  {indicator.category?.title || "Standard Protocol"}
+                </p>
+              </div>
+              <div className="px-2 border-l border-slate-100">
+                <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">
+                  Lead Officer
+                </p>
+                <p className="text-sm font-bold text-[#1a3a32] flex items-center gap-2">
+                  <span className="w-2 h-2 rounded-full bg-[#c2a336] shadow-[0_0_8px_rgba(194,163,54,0.5)]"></span>
+                  {assignedName}
+                </p>
+              </div>
+            </div>
+
+            {/* EVIDENCE SECTION - CLICKABLE FILES */}
+            <div className="space-y-4">
+              <div className="flex items-center justify-between">
+                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">
+                  Evidence Registry
+                </p>
+                <span className="text-[10px] font-bold text-slate-300">
+                  {indicator.evidence?.length || 0} Files Attached
+                </span>
+              </div>
+              {indicator.evidence?.length > 0 ? (
+                <div className="grid grid-cols-1 gap-2">
+                  {indicator.evidence.map((ev: IEvidence, idx: number) => (
+                    <div
+                      key={idx}
+                      onClick={() => setPreviewFile(ev)} // TRIGGER PREVIEW HERE
+                      className="group p-4 bg-slate-50 border border-slate-100 rounded-2xl flex items-center justify-between transition-all hover:bg-white hover:border-[#c2a336]/40 hover:shadow-md cursor-pointer"
+                    >
+                      <div className="flex items-center gap-4 overflow-hidden">
+                        <div className="w-10 h-10 rounded-xl bg-white flex items-center justify-center text-slate-400 group-hover:text-[#c2a336] border border-slate-100 group-hover:border-[#c2a336]/20 transition-all">
+                          <FileText size={18} />
+                        </div>
+                        <p className="text-sm font-bold text-slate-600 truncate">
+                          {ev.fileName}
+                        </p>
+                      </div>
+                      <ChevronRight
+                        size={14}
+                        className="text-slate-300 group-hover:text-[#c2a336]"
+                      />
+                    </div>
+                  ))}
+                </div>
               ) : (
-                <div className={`flex items-center gap-3 text-sm font-black ${compliance.early ? "text-emerald-600" : "text-rose-600"}`}>
-                  <FileCheck size={18} />
-                  <span>{compliance.label} {compliance.early ? "Ahead" : "Past Due"}</span>
+                <div className="py-8 text-center bg-slate-50 rounded-3xl border border-dashed border-slate-200">
+                  <p className="text-xs font-bold text-slate-400 uppercase">
+                    No Evidence Dossier Found
+                  </p>
                 </div>
               )}
             </div>
-
-            <div className="p-5 bg-[#1a3a32] rounded-[2rem] text-white">
-              <p className="text-[10px] font-black text-[#c2a336] uppercase tracking-widest mb-3">Last Registry Update</p>
-              <div className="flex items-center gap-3">
-                <Calendar size={18} className="text-[#c2a336]" />
-                <span className="text-sm font-black">
-                  {new Date(indicator.updatedAt).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })}
-                </span>
-              </div>
-            </div>
           </div>
 
-          {/* ADDED META INFO: Here is where assignedName is now used */}
-          <div className="grid grid-cols-2 gap-8 px-2">
-            <div className="space-y-1">
-              <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Protocol Architecture</p>
-              <p className="text-sm font-extrabold text-[#1a3a32]">{indicator.category?.title || "N/A"}</p>
-            </div>
-            <div className="space-y-1">
-              <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Ownership</p>
-              <p className="text-sm font-extrabold text-[#1a3a32] flex items-center gap-2">
-                <span className="w-2 h-2 rounded-full bg-[#c2a336]"></span> {assignedName}
-              </p>
-            </div>
-          </div>
-
-          <div className="space-y-4">
-            <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Evidence Registry</p>
-            {indicator.evidence?.length > 0 ? (
-              <div className="space-y-3">
-                {indicator.evidence.map((ev: IEvidence, idx: number) => (
-                  <div key={idx} className="p-4 bg-white border border-gray-100 rounded-2xl flex items-center gap-4 transition-all hover:border-[#c2a336]/40">
-                    <FileText className="text-gray-400" size={18} />
-                    <p className="text-sm font-extrabold text-[#1a3a32] truncate">{ev.fileName}</p>
-                  </div>
-                ))}
-              </div>
-            ) : (
-              <p className="text-xs font-bold italic text-gray-400">No Evidence Found</p>
-            )}
-          </div>
-
-          <div className="flex items-center justify-end gap-4 mt-6">
+          <div className="p-8 bg-white border-t border-slate-100 flex items-center justify-between gap-4">
             <button
-              disabled={processingId === indicator._id || indicator.status === "completed"}
-              onClick={() => onReview(indicator, true)}
-              className="px-8 py-3.5 bg-[#1a3a32] text-white text-xs font-black uppercase tracking-widest rounded-2xl hover:bg-[#c2a336] disabled:opacity-30 transition-all shadow-md hover:shadow-lg"
+              onClick={onClose}
+              className="px-6 py-4 text-[10px] font-black uppercase tracking-widest text-slate-400 hover:text-slate-600 transition-colors"
             >
-              Ratify Protocol
+              Cancel Review
             </button>
-            <button
-              disabled={processingId === indicator._id || indicator.status === "completed"}
-              onClick={() => onReview(indicator, false)}
-              className="px-8 py-3.5 bg-rose-600 text-white text-xs font-black uppercase tracking-widest rounded-2xl hover:bg-rose-700 disabled:opacity-30 transition-all"
-            >
-              Return
-            </button>
+            <div className="flex items-center gap-3">
+              <button
+                disabled={
+                  processingId === indicator._id ||
+                  indicator.status === "completed"
+                }
+                onClick={() => onReview(indicator, false)}
+                className="px-8 py-4 bg-rose-50 text-rose-600 text-[10px] font-black uppercase rounded-2xl hover:bg-rose-600 hover:text-white transition-all border border-rose-100"
+              >
+                Return Case
+              </button>
+              <button
+                disabled={
+                  processingId === indicator._id ||
+                  indicator.status === "completed"
+                }
+                onClick={() => onReview(indicator, true)}
+                className="flex items-center gap-2 px-10 py-4 bg-[#1a3a32] text-white text-[10px] font-black uppercase rounded-2xl hover:bg-[#c2a336] transition-all shadow-lg"
+              >
+                {processingId === indicator._id ? (
+                  <Loader2 size={14} className="animate-spin" />
+                ) : (
+                  <ShieldCheck size={14} />
+                )}
+                Ratify Protocol
+              </button>
+            </div>
           </div>
         </div>
       </div>
-    </div>
+
+     
+    {/* EVIDENCE PREVIEW OVERLAY */}
+
+      {/* NEW: Evidence Preview Modal Overlay */}
+      {previewFile && (
+        <div className="fixed inset-0 z-[2000] flex items-center justify-center">
+          {/* We add an extra backdrop here specifically for the preview */}
+          <div 
+            className="absolute inset-0 bg-black/60 backdrop-blur-md" 
+            onClick={() => setPreviewFile(null)} 
+          />
+          <div className="relative z-[2100] w-full max-w-4xl h-[90vh]">
+            <EvidencePreviewModal
+              file={previewFile}
+              onClose={() => setPreviewFile(null)}
+            />
+          </div>
+        </div>
+      )}
+    </>
   );
 };
 

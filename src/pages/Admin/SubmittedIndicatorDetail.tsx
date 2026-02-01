@@ -4,7 +4,7 @@ import { useParams, useNavigate } from "react-router-dom";
 import { useAppDispatch, useAppSelector } from "../../store/hooks";
 import {
   fetchAllIndicatorsForAdmin,
-  updateIndicator,
+  approveIndicator,
   rejectIndicator,
   type IIndicator,
   type IEvidence,
@@ -17,9 +17,9 @@ import {
 import {
   Loader2,
   User as UserIcon,
+  Users as GroupIcon,
   Calendar,
   ChevronLeft,
-  CheckCircle,
   XCircle,
   FileText,
   AlertTriangle,
@@ -27,6 +27,7 @@ import {
   TrendingUp,
   Eye,
   Lock,
+  Gavel,
 } from "lucide-react";
 import toast from "react-hot-toast";
 import EvidencePreviewModal from "../User/EvidencePreviewModal";
@@ -36,16 +37,18 @@ const SubmittedIndicatorDetail: React.FC = () => {
   const dispatch = useAppDispatch();
   const navigate = useNavigate();
 
-  const indicators: IIndicator[] = useAppSelector(
-    (state) => state.indicators.allIndicators,
-  );
+  // Selectors
+  const indicators = useAppSelector((state) => state.indicators.allIndicators);
   const users = useAppSelector(selectAllUsers);
+  const { user: currentUser } = useAppSelector((state) => state.auth); // Assuming auth slice stores user info
 
   const [loading, setLoading] = useState<boolean>(true);
   const [previewFile, setPreviewFile] = useState<IEvidence | null>(null);
   const [showRejectModal, setShowRejectModal] = useState<boolean>(false);
   const [rejectReason, setRejectReason] = useState<string>("");
   const [selectedProgress, setSelectedProgress] = useState<number>(0);
+
+  const isSuperAdmin = currentUser?.role?.toLowerCase() === "superadmin";
 
   useEffect(() => {
     const fetchData = async () => {
@@ -73,30 +76,52 @@ const SubmittedIndicatorDetail: React.FC = () => {
     return () => document.removeEventListener("contextmenu", handleContextMenu);
   }, []);
 
-  const getUserName = (userId: string | null): string =>
-    userId
-      ? users.find((u: IUser) => u._id === userId)?.name || "Official"
-      : "-";
-
-  const isFinalized: boolean =
-    indicator?.status === "approved" || indicator?.status === "completed";
-
-  const handleApprove = async () => {
-    if (!indicator || isFinalized) return;
-    const res = await dispatch(
-      updateIndicator({
-        id: indicator._id,
-        updates: {
-          status: selectedProgress === 100 ? "completed" : "approved",
-          progress: selectedProgress,
-        },
-      }),
-    );
-    if (res.meta.requestStatus === "fulfilled") {
-      toast.success(`Verified: Metric set to ${selectedProgress}%`);
-      navigate("/admin/dashboard");
+  const renderCustodians = (): string => {
+    if (!indicator) return "-";
+    if (indicator.assignedToType === "individual") {
+      return (
+        users.find((u: IUser) => u._id === indicator.assignedTo)?.name ||
+        "Individual Custodian"
+      );
     }
+    if (indicator.assignedToType === "group") {
+      const groupNames = indicator.assignedGroup
+        .map((userId) => users.find((u: IUser) => u._id === userId)?.name)
+        .filter(Boolean);
+      return groupNames.length > 0 ? groupNames.join(", ") : "Assigned Group";
+    }
+    return "Official";
   };
+
+  /**
+   * UPDATED FINALIZATION LOGIC:
+   * If user is Superadmin, it's only finalized if status is 'completed'.
+   * If user is Admin, it's finalized if it's already 'approved' or 'completed'.
+   */
+  const isFinalized: boolean = isSuperAdmin
+    ? indicator?.status === "completed"
+    : indicator?.status === "approved" || indicator?.status === "completed";
+
+ const handleApprove = async () => {
+  if (!indicator || isFinalized) return;
+
+  // Change: Wrap the ID in an object to match the new Thunk signature
+  // You can also pass a note here if you want it recorded in the audit trail
+  const res = await dispatch(
+    approveIndicator({ 
+      id: indicator._id, 
+      notes: `Approved by ${currentUser?.role || "Admin"}` 
+    })
+  );
+
+  if (res.meta.requestStatus === "fulfilled") {
+    // Notifications and state updates are handled in the slice/backend
+    toast.success(isSuperAdmin ? "Indicator Finalized" : "Indicator Approved");
+    navigate("/admin/dashboard");
+  } else {
+    toast.error("Approval failed. Please check the logs.");
+  }
+};
 
   const handleReject = async () => {
     if (!indicator || isFinalized) return;
@@ -106,7 +131,7 @@ const SubmittedIndicatorDetail: React.FC = () => {
       await dispatch(
         rejectIndicator({ id: indicator._id, notes: trimmedReason }),
       ).unwrap();
-      toast.success("Indicator rejected successfully.");
+      toast.success("Indicator returned for revision.");
       setShowRejectModal(false);
       navigate("/admin/dashboard");
     } catch (err: any) {
@@ -117,13 +142,13 @@ const SubmittedIndicatorDetail: React.FC = () => {
   if (loading) return <LoadingState />;
   if (!indicator)
     return (
-      <div className="p-20 text-center font-bold font-serif text-[#1a3a32]">
+      <div className="p-20 text-center font-bold text-[#1a3a32]">
         Record Not Found.
       </div>
     );
 
   return (
-    <div className="min-h-screen p-6 lg:p-10 bg-[#f8f9fa] space-y-8 max-w-7xl mx-auto select-none">
+    <div className="min-h-screen p-6 lg:p-10 bg-[#f8f9fa] space-y-8 max-w-7xl mx-auto select-none font-sans">
       {/* Header Navigation */}
       <div className="flex justify-between items-center">
         <button
@@ -137,8 +162,9 @@ const SubmittedIndicatorDetail: React.FC = () => {
           Back to Registry
         </button>
         <div
-          className={`px-5 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest border shadow-sm ${getStatusStyles(indicator.status)}`}
+          className={`px-5 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest border shadow-sm flex items-center gap-2 ${getStatusStyles(indicator.status)}`}
         >
+          <div className="h-1.5 w-1.5 rounded-full bg-current animate-pulse" />
           Status: {indicator.status.toUpperCase()}
         </div>
       </div>
@@ -156,9 +182,19 @@ const SubmittedIndicatorDetail: React.FC = () => {
             </h1>
             <div className="grid grid-cols-2 md:grid-cols-4 gap-8 pt-8 border-t border-slate-50">
               <Stat
-                icon={<UserIcon size={14} />}
-                label="Custodian"
-                value={getUserName(indicator.assignedTo)}
+                icon={
+                  indicator.assignedToType === "group" ? (
+                    <GroupIcon size={14} />
+                  ) : (
+                    <UserIcon size={14} />
+                  )
+                }
+                label={
+                  indicator.assignedToType === "group"
+                    ? "Group Custodians"
+                    : "Custodian"
+                }
+                value={renderCustodians()}
               />
               <Stat
                 icon={<Calendar size={14} />}
@@ -178,7 +214,7 @@ const SubmittedIndicatorDetail: React.FC = () => {
             </div>
           </div>
 
-          {/* Evidence Section - DESCRIPTION UPDATE HERE */}
+          {/* Evidence Section */}
           <div className="bg-white rounded-[2.5rem] p-10 border border-slate-100 shadow-sm relative">
             <div className="flex justify-between items-center mb-8">
               <h3 className="text-[10px] font-black text-[#1a3a32] uppercase tracking-[0.2em] flex items-center gap-2">
@@ -222,35 +258,32 @@ const SubmittedIndicatorDetail: React.FC = () => {
                 ))}
               </ul>
             )}
-            <p className="mt-6 text-[9px] text-slate-400 italic text-center border-t border-slate-50 pt-4">
-              Judiciary Security Policy: Direct downloads are disabled for
-              Administrative Audits.
-            </p>
           </div>
         </div>
 
         {/* Action Sidebar */}
-        <div className="bg-[#1a3a32] rounded-[3rem] p-8 text-white shadow-2xl shadow-[#1a3a32]/20 space-y-8 sticky top-10 border border-white/5">
+        <div className="bg-[#1a3a32] rounded-[3rem] p-8 text-white shadow-2xl space-y-8 sticky top-10 border border-white/5">
           <div>
             <h3 className="text-[10px] font-black uppercase tracking-[0.3em] mb-4 text-[#c2a336]">
-              Audit Judgment
+              {isSuperAdmin ? "Final Certification" : "Registry Approval"}
             </h3>
             <p className="text-xs leading-relaxed text-slate-300 font-medium">
-              Assess the evidence provided. Downloads are restricted to preserve
-              document integrity during the review process.
+              {isSuperAdmin
+                ? "As a Superadmin, your approval will mark this record as COMPLETED and finalize the audit."
+                : "Upon your approval, this record moves to the APPROVED state for final Superadmin review."}
             </p>
           </div>
 
           <div className="space-y-4 bg-white/5 p-6 rounded-3xl border border-white/10">
             <label className="text-[10px] font-black uppercase tracking-widest text-[#c2a336] block">
-              Set Completion Level
+              Audit Metric Value
             </label>
             <div className="relative">
               <select
                 disabled={isFinalized}
                 value={selectedProgress}
                 onChange={(e) => setSelectedProgress(Number(e.target.value))}
-                className="w-full bg-[#1a3a32] border-2 border-white/10 rounded-2xl p-4 text-sm font-black appearance-none focus:border-[#c2a336] outline-none transition-all cursor-pointer"
+                className="w-full bg-[#1a3a32] border-2 border-white/10 rounded-2xl p-4 text-sm font-black appearance-none focus:border-[#c2a336] outline-none transition-all cursor-pointer disabled:opacity-50"
               >
                 {[0, 10, 20, 30, 40, 50, 60, 70, 80, 90, 100].map(
                   (val: number) => (
@@ -259,7 +292,7 @@ const SubmittedIndicatorDetail: React.FC = () => {
                       value={val}
                       className="bg-[#1a3a32] text-white"
                     >
-                      {val}% Completed
+                      {val}% Progress
                     </option>
                   ),
                 )}
@@ -276,14 +309,15 @@ const SubmittedIndicatorDetail: React.FC = () => {
               disabled={isFinalized}
               className={`w-full flex items-center justify-center gap-3 py-5 rounded-2xl font-black text-[11px] uppercase tracking-widest transition-all shadow-lg active:scale-95 ${isFinalized ? "bg-gray-600 text-slate-400 cursor-not-allowed" : "bg-[#c2a336] hover:bg-[#d4b44a] text-[#1a3a32]"}`}
             >
-              <CheckCircle size={18} /> Approve @ {selectedProgress}%
+              <Gavel size={18} />{" "}
+              {isSuperAdmin ? "Finalize & Complete" : "Approve Record"}
             </button>
             <button
               onClick={() => setShowRejectModal(true)}
               disabled={isFinalized}
               className={`w-full flex items-center justify-center gap-3 py-5 rounded-2xl font-black text-[11px] uppercase tracking-widest transition-all border ${isFinalized ? "bg-transparent border-gray-600 text-gray-600 cursor-not-allowed" : "bg-white/10 hover:bg-white/20 text-white border-white/10"}`}
             >
-              <XCircle size={18} /> Deny Submission
+              <XCircle size={18} /> Return for Revision
             </button>
           </div>
         </div>
@@ -297,7 +331,6 @@ const SubmittedIndicatorDetail: React.FC = () => {
           onClose={() => setShowRejectModal(false)}
         />
       )}
-
       {previewFile && (
         <EvidencePreviewModal
           file={previewFile}
@@ -308,7 +341,7 @@ const SubmittedIndicatorDetail: React.FC = () => {
   );
 };
 
-/* --- SUB-COMPONENTS --- */
+/* --- SUB-COMPONENTS & STYLES --- */
 
 const LoadingState: React.FC = () => (
   <div className="flex flex-col justify-center items-center h-screen bg-[#f8f9fa]">
@@ -328,14 +361,14 @@ const Stat: React.FC<{
     <div className="flex items-center gap-1.5 text-[9px] font-black text-slate-400 uppercase tracking-[0.2em] group-hover:text-[#c2a336] transition-colors">
       {icon} {label}
     </div>
-    <div className="text-xs font-black text-[#1a3a32] truncate uppercase tracking-tight">
+    <div className="text-xs font-black text-[#1a3a32] uppercase tracking-tight line-clamp-2">
       {value}
     </div>
   </div>
 );
 
 const EmptyEvidence: React.FC = () => (
-  <div className="p-12 text-center border-2 border-dashed border-slate-50 rounded-[2rem]">
+  <div className="p-12 text-center border-2 border-dashed border-slate-100 rounded-[2rem]">
     <AlertTriangle size={32} className="mx-auto text-amber-300 mb-4" />
     <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">
       No exhibits discovered
@@ -384,13 +417,11 @@ const RejectModal: React.FC<{
 const getStatusStyles = (status: string) => {
   switch (status?.toLowerCase()) {
     case "approved":
+      return "bg-amber-50 text-amber-700 border-amber-200";
     case "completed":
       return "bg-emerald-50 text-emerald-700 border-emerald-200";
     case "submitted":
       return "bg-blue-50 text-blue-700 border-blue-200";
-    case "pending":
-    case "upcoming":
-      return "bg-amber-50 text-amber-700 border-amber-200";
     case "rejected":
       return "bg-rose-50 text-rose-700 border-rose-200";
     default:

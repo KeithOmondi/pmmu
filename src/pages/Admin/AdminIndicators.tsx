@@ -1,5 +1,5 @@
 // src/pages/Admin/AdminIndicators.tsx
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo,  useState } from "react";
 import { useAppDispatch, useAppSelector } from "../../store/hooks";
 import {
   fetchAllIndicatorsForAdmin,
@@ -10,12 +10,14 @@ import {
   fetchUsers,
   selectAllUsers,
   selectUsersLoading,
+  type IUser,
 } from "../../store/slices/userSlice";
 import {
   Loader2,
   Eye,
   FolderOpen,
   User as UserIcon,
+  Users as GroupIcon, // Added for visual distinction
   Calendar,
   Layers,
   Search,
@@ -65,10 +67,24 @@ const AdminIndicators: React.FC = () => {
     return result;
   }, [indicators, searchTerm]);
 
-  const getUserName = (id: string | null) => {
-    if (!id) return "-";
-    const user = users.find((u) => u._id === id);
-    return user ? user.name : "Unknown Official";
+  /**
+   * Helper to render Official/Custodian names based on assignment type
+   */
+  const renderOfficialNames = (indicator: any) => {
+    if (indicator.assignedToType === "individual") {
+      const user = users.find((u: IUser) => u._id === indicator.assignedTo);
+      return user ? user.name : "Individual Official";
+    }
+
+    if (indicator.assignedToType === "group") {
+      const groupNames = indicator.assignedGroup
+        .map((id: string) => users.find((u: IUser) => u._id === id)?.name)
+        .filter(Boolean);
+
+      return groupNames.length > 0 ? groupNames.join(", ") : "Assigned Group";
+    }
+
+    return "Unassigned";
   };
 
   if (isLoading) {
@@ -144,24 +160,12 @@ const AdminIndicators: React.FC = () => {
                   <table className="min-w-full text-sm">
                     <thead>
                       <tr className="bg-[#fcfcfc] text-[#8c94a4] uppercase text-[10px] tracking-[0.15em] border-b border-gray-100">
-                        <th className="px-6 py-5 text-left font-black">
-                          Indicator
-                        </th>
-                        <th className="px-6 py-5 text-left font-black">
-                          Official
-                        </th>
-                        <th className="px-6 py-5 text-left font-black">
-                          Timeline
-                        </th>
-                        <th className="px-6 py-5 text-left font-black">
-                          Audit Progress
-                        </th>
-                        <th className="px-6 py-5 text-center font-black">
-                          Status
-                        </th>
-                        <th className="px-6 py-5 text-center font-black">
-                          Action
-                        </th>
+                        <th className="px-6 py-5 text-left font-black">Indicator</th>
+                        <th className="px-6 py-5 text-left font-black">Official</th>
+                        <th className="px-6 py-5 text-left font-black">Timeline</th>
+                        <th className="px-6 py-5 text-left font-black">Audit Progress</th>
+                        <th className="px-6 py-5 text-center font-black">Status</th>
+                        <th className="px-6 py-5 text-center font-black">Action</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-gray-50">
@@ -180,11 +184,13 @@ const AdminIndicators: React.FC = () => {
                           </td>
                           <td className="px-6 py-5">
                             <div className="flex items-center gap-2">
-                              <UserIcon size={14} className="text-[#8c94a4]" />
-                              <span className="text-[#1a3a32] font-bold text-xs">
-                                {i.assignedToType === "individual"
-                                  ? getUserName(i.assignedTo)
-                                  : "Group"}
+                              {i.assignedToType === "group" ? (
+                                <GroupIcon size={14} className="text-[#c2a336]" />
+                              ) : (
+                                <UserIcon size={14} className="text-[#8c94a4]" />
+                              )}
+                              <span className="text-[#1a3a32] font-bold text-[11px] max-w-[150px] line-clamp-1">
+                                {renderOfficialNames(i)}
                               </span>
                             </div>
                           </td>
@@ -242,9 +248,14 @@ const AdminIndicators: React.FC = () => {
                         <StatusBadge status={i.status} />
                         <ChevronRight size={18} className="text-gray-300" />
                       </div>
-                      <h4 className="font-bold text-[#1a3a32] leading-snug mb-2">
+                      <h4 className="font-bold text-[#1a3a32] leading-snug mb-1">
                         {i.indicatorTitle}
                       </h4>
+                      <div className="flex items-center gap-1.5 mb-4">
+                         <span className="text-[10px] text-slate-400 font-bold">
+                            {renderOfficialNames(i)}
+                         </span>
+                      </div>
                       <div className="mt-4 pt-4 border-t border-gray-50">
                         <div className="flex justify-between items-center mb-1">
                           <span className="text-[9px] font-black uppercase text-[#c2a336] flex items-center gap-1">
@@ -279,7 +290,7 @@ const StatusBadge = ({ status }: { status: string }) => {
   const styles =
     {
       approved: "bg-emerald-50 border-emerald-100 text-emerald-700",
-      completed: "bg-[#1a3a32] border-[#1a3a32] text-white", // Added SuperAdmin completed style
+      completed: "bg-[#1a3a32] border-[#1a3a32] text-white",
       pending: "bg-amber-50 border-amber-100 text-amber-700",
       submitted: "bg-blue-50 border-blue-100 text-blue-700",
       rejected: "bg-rose-50 border-rose-100 text-rose-700",
