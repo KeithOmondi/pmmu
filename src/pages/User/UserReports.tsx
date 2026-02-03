@@ -35,14 +35,14 @@ const UserReport: React.FC = () => {
   const handleDownload = async () => {
     try {
       const resultAction = await dispatch(
-        downloadReportPdf({ type: selectedType })
+        downloadReportPdf({ type: selectedType }),
       ).unwrap();
       const url = window.URL.createObjectURL(new Blob([resultAction]));
       const link = document.createElement("a");
       link.href = url;
       link.setAttribute(
         "download",
-        `Certified_Performance_Record_${Date.now()}.pdf`
+        `Certified_Performance_Record_${Date.now()}.pdf`,
       );
       document.body.appendChild(link);
       link.click();
@@ -93,7 +93,6 @@ const UserReport: React.FC = () => {
   return (
     <div className="min-h-screen bg-[#f8fafc] p-6 lg:p-12 animate-in fade-in duration-700">
       <div className="max-w-6xl mx-auto space-y-12">
-        
         {/* Executive Header */}
         <div className="bg-[#1a3a32] p-10 rounded-[2.5rem] shadow-2xl relative overflow-hidden text-white">
           <div className="absolute top-0 right-0 p-8 opacity-10 pointer-events-none">
@@ -101,13 +100,16 @@ const UserReport: React.FC = () => {
           </div>
           <div className="relative z-10">
             <div className="flex items-center gap-2 text-[#c2a336] mb-3 font-bold uppercase tracking-[0.3em] text-[10px]">
-              <ShieldCheck size={14} className="animate-pulse" /> Verified User Registry
+              <ShieldCheck size={14} className="animate-pulse" /> Verified User
+              Registry
             </div>
             <h1 className="text-4xl font-black tracking-tighter">
               Performance <span className="text-[#c2a336]">Archive.</span>
             </h1>
             <p className="text-white/60 text-sm font-medium mt-2 max-w-xl leading-relaxed">
-              Generate, preview, and export your certified performance mandates. These documents are formatted for official judicial review and departmental audits.
+              Generate, preview, and export your certified performance mandates.
+              These documents are formatted for official judicial review and
+              departmental audits.
             </p>
           </div>
         </div>
@@ -116,7 +118,8 @@ const UserReport: React.FC = () => {
           {/* Selection List */}
           <div className="lg:col-span-7 space-y-4">
             <h2 className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400 mb-6 flex items-center gap-2">
-              <ChevronRight size={14} className="text-[#c2a336]" /> Select Document Template
+              <ChevronRight size={14} className="text-[#c2a336]" /> Select
+              Document Template
             </h2>
             {reportOptions.map((opt) => (
               <button
@@ -139,9 +142,13 @@ const UserReport: React.FC = () => {
                     {opt.icon}
                   </div>
                   <div>
-                    <h3 className={`font-black uppercase tracking-tight text-sm mb-1 ${
-                      selectedType === opt.id ? "text-[#1a3a32]" : "text-slate-600"
-                    }`}>
+                    <h3
+                      className={`font-black uppercase tracking-tight text-sm mb-1 ${
+                        selectedType === opt.id
+                          ? "text-[#1a3a32]"
+                          : "text-slate-600"
+                      }`}
+                    >
                       {opt.title}
                     </h3>
                     <p className="text-[11px] text-slate-400 font-semibold leading-relaxed max-w-xs">
@@ -149,9 +156,13 @@ const UserReport: React.FC = () => {
                     </p>
                   </div>
                 </div>
-                <div className={`w-8 h-8 rounded-full flex items-center justify-center transition-all ${
-                   selectedType === opt.id ? "bg-[#c2a336] text-[#1a3a32]" : "bg-slate-50 text-slate-200"
-                }`}>
+                <div
+                  className={`w-8 h-8 rounded-full flex items-center justify-center transition-all ${
+                    selectedType === opt.id
+                      ? "bg-[#c2a336] text-[#1a3a32]"
+                      : "bg-slate-50 text-slate-200"
+                  }`}
+                >
                   <ChevronRight size={16} strokeWidth={3} />
                 </div>
               </button>
@@ -167,12 +178,20 @@ const UserReport: React.FC = () => {
                 </h3>
                 <div className="space-y-3">
                   <div className="flex justify-between items-center">
-                    <span className="text-[11px] font-bold text-slate-400 uppercase">Selected Scope:</span>
-                    <span className="text-[11px] font-black text-[#c2a336] uppercase">{selectedType}</span>
+                    <span className="text-[11px] font-bold text-slate-400 uppercase">
+                      Selected Scope:
+                    </span>
+                    <span className="text-[11px] font-black text-[#c2a336] uppercase">
+                      {selectedType}
+                    </span>
                   </div>
                   <div className="flex justify-between items-center">
-                    <span className="text-[11px] font-bold text-slate-400 uppercase">Format:</span>
-                    <span className="text-[11px] font-black text-[#1a3a32] uppercase">ISO PDF-A</span>
+                    <span className="text-[11px] font-bold text-slate-400 uppercase">
+                      Format:
+                    </span>
+                    <span className="text-[11px] font-black text-[#1a3a32] uppercase">
+                      ISO PDF-A
+                    </span>
                   </div>
                 </div>
               </div>
@@ -183,7 +202,11 @@ const UserReport: React.FC = () => {
                   onClick={handlePreview}
                   className="w-full flex items-center justify-center gap-3 bg-slate-100 hover:bg-slate-200 text-[#1a3a32] py-5 rounded-2xl font-black text-[10px] uppercase tracking-widest transition-all"
                 >
-                  {loading ? <Loader2 className="animate-spin" size={16} /> : <Eye size={18} />}
+                  {loading ? (
+                    <Loader2 className="animate-spin" size={16} />
+                  ) : (
+                    <Eye size={18} />
+                  )}
                   Inspect Registry
                 </button>
 
@@ -192,7 +215,11 @@ const UserReport: React.FC = () => {
                   onClick={handleDownload}
                   className="w-full flex items-center justify-center gap-3 bg-[#c2a336] hover:bg-[#d4b54a] text-[#1a3a32] py-5 rounded-2xl font-black text-[10px] uppercase tracking-widest transition-all shadow-xl shadow-[#c2a336]/20 active:scale-95"
                 >
-                  {loading ? <Loader2 className="animate-spin" size={16} /> : <Download size={18} />}
+                  {loading ? (
+                    <Loader2 className="animate-spin" size={16} />
+                  ) : (
+                    <Download size={18} />
+                  )}
                   Generate Official PDF
                 </button>
               </div>
@@ -201,7 +228,8 @@ const UserReport: React.FC = () => {
                 <div className="flex items-center gap-3 px-4 py-3 bg-blue-50/50 rounded-xl">
                   <ShieldCheck size={16} className="text-blue-600" />
                   <p className="text-[9px] font-bold text-blue-700 uppercase tracking-tighter">
-                    Document will be timestamped with your unique ID for audit traceability.
+                    Document will be timestamped with your unique ID for audit
+                    traceability.
                   </p>
                 </div>
               </div>

@@ -23,9 +23,19 @@ const EvidencePreviewModal: React.FC<Props> = ({ file, onClose }) => {
       <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/80 backdrop-blur-sm">
         <div className="bg-white p-8 rounded-3xl text-center max-w-sm">
           <ShieldAlert size={48} className="mx-auto text-rose-500 mb-4" />
-          <h3 className="font-black text-[#1E3A2B] uppercase text-sm">Access Denied</h3>
-          <p className="text-xs text-gray-500 mt-2">Could not generate a secure access token for this file. Please refresh the page.</p>
-          <button onClick={onClose} className="mt-6 px-6 py-2 bg-[#1E3A2B] text-white rounded-xl text-[10px] font-black uppercase">Close</button>
+          <h3 className="font-black text-[#1E3A2B] uppercase text-sm">
+            Access Denied
+          </h3>
+          <p className="text-xs text-gray-500 mt-2">
+            Could not generate a secure access token for this file. Please
+            refresh the page.
+          </p>
+          <button
+            onClick={onClose}
+            className="mt-6 px-6 py-2 bg-[#1E3A2B] text-white rounded-xl text-[10px] font-black uppercase"
+          >
+            Close
+          </button>
         </div>
       </div>
     );
@@ -36,20 +46,21 @@ const EvidencePreviewModal: React.FC<Props> = ({ file, onClose }) => {
   const isVideo = file.mimeType.startsWith("video/");
 
   // Add parameters to the signed URL to disable PDF tools
-  const displayUrl = isPdf ? `${rawUrl}#toolbar=0&navpanes=0&scrollbar=1` : rawUrl;
+  const displayUrl = isPdf
+    ? `${rawUrl}#toolbar=0&navpanes=0&scrollbar=1`
+    : rawUrl;
 
   return (
-    <div 
+    <div
       className="fixed inset-0 z-[100] flex items-center justify-center bg-[#1E3A2B]/95 backdrop-blur-xl p-4 lg:p-10"
       onContextMenu={(e) => e.preventDefault()} // Block Right Click
     >
       <div className="relative h-full w-full rounded-[3rem] bg-white shadow-2xl overflow-hidden border border-white/20 flex flex-col">
-        
         {/* SECURE HEADER */}
         <div className="h-20 bg-white/95 backdrop-blur-md flex items-center justify-between px-8 z-50 border-b border-slate-100">
           <div className="flex items-center gap-4">
             <div className="bg-emerald-50 p-2.5 rounded-2xl">
-               <Lock size={20} className="text-[#1E3A2B]" />
+              <Lock size={20} className="text-[#1E3A2B]" />
             </div>
             <div>
               <h3 className="text-sm font-black text-[#1E3A2B] truncate max-w-[200px] md:max-w-md uppercase tracking-widest">
@@ -61,23 +72,27 @@ const EvidencePreviewModal: React.FC<Props> = ({ file, onClose }) => {
               </p>
             </div>
           </div>
-          
+
           <button
             onClick={onClose}
             className="p-3 bg-slate-50 hover:bg-rose-50 hover:text-rose-500 rounded-2xl transition-all duration-300 group"
           >
-            <X size={24} className="group-hover:rotate-90 transition-transform" />
+            <X
+              size={24}
+              className="group-hover:rotate-90 transition-transform"
+            />
           </button>
         </div>
 
         {/* PREVIEW CONTENT */}
         <div className="relative flex-1 w-full bg-[#F8F9FA] overflow-hidden">
-          
           {/* LOADING STATE */}
           {loading && (
             <div className="absolute inset-0 flex flex-col items-center justify-center z-10 bg-white">
               <Loader2 className="animate-spin text-[#1E3A2B] mb-2" size={32} />
-              <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Verifying Signature...</p>
+              <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">
+                Verifying Signature...
+              </p>
             </div>
           )}
 
@@ -95,26 +110,26 @@ const EvidencePreviewModal: React.FC<Props> = ({ file, onClose }) => {
           )}
 
           {/* PDF PREVIEW - Using Object for better rendering of signed URLs */}
-         {isPdf && (
-  <div className="h-full w-full relative">
-    {/* We use a Google Docs Viewer wrapper as a fallback, 
+          {isPdf && (
+            <div className="h-full w-full relative">
+              {/* We use a Google Docs Viewer wrapper as a fallback, 
         but first try a direct iframe with the clean signed URL */}
-    <iframe
-      src={`https://docs.google.com/viewer?url=${encodeURIComponent(rawUrl)}&embedded=true`}
-      className="h-full w-full border-none"
-      onLoad={() => setLoading(false)}
-      title="PDF Preview"
-    />
-    
-    {/* If you prefer NOT to use Google, use this clean version: */}
-    {/* <iframe 
+              <iframe
+                src={`https://docs.google.com/viewer?url=${encodeURIComponent(rawUrl)}&embedded=true`}
+                className="h-full w-full border-none"
+                onLoad={() => setLoading(false)}
+                title="PDF Preview"
+              />
+
+              {/* If you prefer NOT to use Google, use this clean version: */}
+              {/* <iframe 
        src={rawUrl} 
        className="h-full w-full border-none" 
        onLoad={() => setLoading(false)} 
     /> 
     */}
-  </div>
-)}
+            </div>
+          )}
 
           {/* VIDEO PREVIEW */}
           {isVideo && (
@@ -133,19 +148,25 @@ const EvidencePreviewModal: React.FC<Props> = ({ file, onClose }) => {
           {/* UNSUPPORTED TYPES */}
           {!isImage && !isPdf && !isVideo && (
             <div className="h-full flex flex-col items-center justify-center text-center p-10">
-               <AlertCircle size={48} className="text-amber-500 mb-4" />
-               <p className="text-sm font-black text-[#1E3A2B] uppercase">Type Not Supported for Inline Preview</p>
-               <p className="text-xs text-gray-500 mt-2">Security protocols prevent the direct preview of <b>{file.format}</b> files.</p>
+              <AlertCircle size={48} className="text-amber-500 mb-4" />
+              <p className="text-sm font-black text-[#1E3A2B] uppercase">
+                Type Not Supported for Inline Preview
+              </p>
+              <p className="text-xs text-gray-500 mt-2">
+                Security protocols prevent the direct preview of{" "}
+                <b>{file.format}</b> files.
+              </p>
             </div>
           )}
         </div>
 
         {/* FOOTER SECURITY INFO */}
         <div className="h-14 bg-slate-50 border-t flex items-center justify-center px-8">
-            <p className="text-[9px] font-black text-slate-400 uppercase tracking-[0.3em] flex items-center gap-2">
-                <ShieldAlert size={12} className="text-amber-500" /> 
-                Access Logs Active • ID: {file.publicId.split('/').pop()} • No-Download Policy
-            </p>
+          <p className="text-[9px] font-black text-slate-400 uppercase tracking-[0.3em] flex items-center gap-2">
+            <ShieldAlert size={12} className="text-amber-500" />
+            Access Logs Active • ID: {file.publicId.split("/").pop()} •
+            No-Download Policy
+          </p>
         </div>
       </div>
     </div>

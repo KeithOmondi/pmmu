@@ -1,5 +1,3 @@
-// src/pages/user/UserIndicatorDetail.tsx
-
 import React, { useMemo, useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { useAppDispatch, useAppSelector } from "../../store/hooks";
@@ -22,10 +20,10 @@ import {
   FileText,
   Lock,
   ChevronRight,
-  Info,
   History,
 } from "lucide-react";
 import toast from "react-hot-toast";
+import JSZip from "jszip";
 import EvidencePreviewModal from "./EvidencePreviewModal";
 
 /* --- HELPERS --- */
@@ -38,6 +36,21 @@ const formatDuration = (ms: number) => {
   if (days > 0) return `${days}d ${hours}h left`;
   if (hours > 0) return `${hours}h ${minutes}m left`;
   return `${minutes}m remaining`;
+};
+
+// Map extensions to strict MIME types for backend compatibility
+const getMimeType = (filename: string) => {
+  const ext = filename.split(".").pop()?.toLowerCase();
+  const map: Record<string, string> = {
+    pdf: "application/pdf",
+    png: "image/png",
+    jpg: "image/jpeg",
+    jpeg: "image/jpeg",
+    gif: "image/gif",
+    bmp: "image/bmp",
+    webp: "image/webp",
+  };
+  return map[ext || ""] || "application/octet-stream";
 };
 
 const UserIndicatorDetail: React.FC = () => {
@@ -64,20 +77,76 @@ const UserIndicatorDetail: React.FC = () => {
     return () => clearInterval(t);
   }, []);
 
-const MAX_SIZE = 5 * 1024 * 1024; // 5MB
+  const MAX_SIZE = 5 * 1024 * 1024; // 5MB
+  const ALLOWED_EXT = ["png", "jpg", "jpeg", "gif", "bmp", "webp", "pdf"];
 
-const handleFileChange = (files: FileList | null) => {
-  if (!files) return;
-  const arr = Array.from(files);
-  
-  const overlyLarge = arr.find(f => f.size > MAX_SIZE);
-  if (overlyLarge) {
-    return toast.error(`${overlyLarge.name} exceeds the 5MB limit.`);
-  }
+  /* --- ZIP EXTRACTION & TYPE VALIDATION --- */
+  const handleFileChange = async (files: FileList | null) => {
+    if (!files) return;
+    const rawFiles = Array.from(files);
+    const extractedList: File[] = [];
 
-  setSelectedFiles((prev) => [...prev, ...arr]);
-  setDescriptions((prev) => [...prev, ...arr.map(() => "")]);
-};
+    toast.loading("Processing and validating files...", { id: "zip-process" });
+
+    try {
+      for (const file of rawFiles) {
+        const isZip =
+          file.type === "application/zip" || file.name.endsWith(".zip");
+
+        if (isZip) {
+          const zip = new JSZip();
+          const contents = await zip.loadAsync(file);
+          const promises: Promise<void>[] = [];
+
+          contents.forEach((relativePath, zipEntry) => {
+            if (
+              !zipEntry.dir &&
+              !relativePath.includes("__MACOSX") &&
+              !relativePath.split("/").pop()?.startsWith(".")
+            ) {
+              const p = zipEntry.async("blob").then((blob) => {
+                const mimeType = getMimeType(zipEntry.name);
+                const newFile = new File([blob], zipEntry.name, {
+                  type: mimeType,
+                });
+                extractedList.push(newFile);
+              });
+              promises.push(p);
+            }
+          });
+          await Promise.all(promises);
+        } else {
+          extractedList.push(file);
+        }
+      }
+
+      // --- PRE-FLIGHT VALIDATION ---
+      for (const f of extractedList) {
+        const ext = f.name.split(".").pop()?.toLowerCase() || "";
+
+        // Check Type
+        if (!ALLOWED_EXT.includes(ext)) {
+          toast.error(`Invalid type: ${f.name}. Only Images & PDFs allowed.`, {
+            id: "zip-process",
+          });
+          return;
+        }
+
+        // Check Size
+        if (f.size > MAX_SIZE) {
+          toast.error(`${f.name} exceeds 5MB limit.`, { id: "zip-process" });
+          return;
+        }
+      }
+
+      setSelectedFiles((prev) => [...prev, ...extractedList]);
+      setDescriptions((prev) => [...prev, ...extractedList.map(() => "")]);
+      toast.success("Files verified and added", { id: "zip-process" });
+    } catch (error) {
+      toast.error("Error reading files", { id: "zip-process" });
+      console.error(error);
+    }
+  };
 
   const removeFile = (index: number) => {
     setSelectedFiles((prev) => prev.filter((_, i) => i !== index));
@@ -113,6 +182,7 @@ const handleFileChange = (files: FileList | null) => {
       setDescriptions([]);
       toast.success("Evidence uploaded successfully");
     } catch (err: any) {
+      // Catching the backend "Only image files..." error here
       toast.error(err || "Upload failed");
     }
   };
@@ -127,6 +197,7 @@ const handleFileChange = (files: FileList | null) => {
 
   return (
     <div className="min-h-screen bg-[#F8F9FA] text-[#1E3A2B] selection:bg-emerald-100">
+      {/* Progress Bar */}
       <div className="h-1 bg-gray-200 sticky top-0 z-[60]">
         <div
           className={`h-full transition-all duration-1000 ${isRevision && indicator.status === "rejected" ? "bg-orange-500" : "bg-[#C69214]"}`}
@@ -155,8 +226,6 @@ const handleFileChange = (files: FileList | null) => {
                   Case ID: {indicator._id.slice(-8).toUpperCase()}
                 </span>
               </div>
-
-              {/* 🟢 REJECTION COUNT BADGE */}
               {isRevision && (
                 <div className="flex items-center gap-2 px-3 py-1 bg-rose-50 border border-rose-100 rounded-full text-rose-600 animate-pulse">
                   <History size={10} strokeWidth={3} />
@@ -215,7 +284,7 @@ const handleFileChange = (files: FileList | null) => {
                   <History size={14} /> Revision Required (Attempt #
                   {indicator.rejectionCount})
                 </h3>
-                <p className="text-gray-600 leading-relaxed italic">
+                <p className="text-gray-600 leading-relaxed italic italic">
                   "{indicator.notes[indicator.notes.length - 1]?.text}"
                 </p>
               </div>
@@ -224,7 +293,6 @@ const handleFileChange = (files: FileList | null) => {
         )}
 
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-12">
-          {/* Main Content */}
           <div className="lg:col-span-8 space-y-12">
             <section className="grid grid-cols-2 md:grid-cols-4 gap-px bg-gray-200 border border-gray-200 rounded-[2rem] overflow-hidden shadow-sm">
               <StatCard
@@ -282,11 +350,6 @@ const handleFileChange = (files: FileList | null) => {
                     <p className="text-xs font-black text-gray-400 uppercase tracking-widest">
                       Registry Empty
                     </p>
-                    <p className="text-[10px] text-gray-400 mt-2">
-                      {isRevision
-                        ? "Previous evidence was cleared for revision."
-                        : "No documents have been logged yet."}
-                    </p>
                   </div>
                 )}
               </div>
@@ -299,10 +362,6 @@ const handleFileChange = (files: FileList | null) => {
                 <div
                   className={`bg-white rounded-[2.5rem] border shadow-xl p-8 relative overflow-hidden transition-colors ${isRevision ? "border-orange-100" : "border-gray-100"}`}
                 >
-                  <div className="absolute top-0 right-0 p-4 opacity-5">
-                    <Upload size={80} />
-                  </div>
-
                   <h2
                     className={`text-xs font-black uppercase tracking-widest mb-8 flex items-center gap-2 ${isRevision ? "text-orange-600" : ""}`}
                   >
@@ -324,7 +383,7 @@ const handleFileChange = (files: FileList | null) => {
                       <Upload size={20} />
                     </div>
                     <span className="text-[10px] font-black uppercase tracking-widest text-gray-400 group-hover:text-[#1E3A2B]">
-                      Select Files
+                      Select Files / ZIP
                     </span>
                     <input
                       type="file"
@@ -334,7 +393,7 @@ const handleFileChange = (files: FileList | null) => {
                     />
                   </label>
 
-                  <div className="mt-8 space-y-4 max-h-[300px] overflow-y-auto pr-2 custom-scrollbar">
+                  <div className="mt-8 space-y-4 max-h-[350px] overflow-y-auto pr-2 custom-scrollbar">
                     {selectedFiles.map((file, i) => (
                       <div
                         key={i}
@@ -360,7 +419,7 @@ const handleFileChange = (files: FileList | null) => {
                         <textarea
                           rows={2}
                           className="w-full text-[11px] bg-white border border-gray-100 rounded-xl p-3 focus:ring-1 focus:ring-[#C69214] outline-none transition-all resize-none"
-                          placeholder="Provide context..."
+                          placeholder="Provide context for this file..."
                           value={descriptions[i]}
                           onChange={(e) => updateDescription(i, e.target.value)}
                         />
@@ -375,7 +434,7 @@ const handleFileChange = (files: FileList | null) => {
                   >
                     {submittingEvidence ? (
                       <>
-                        <div className="w-3 h-3 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                        <div className="w-3 h-3 border-2 border-white/30 border-t-white rounded-full animate-spin" />{" "}
                         Uploading
                       </>
                     ) : isRevision ? (
@@ -384,15 +443,6 @@ const handleFileChange = (files: FileList | null) => {
                       "Verify & Submit"
                     )}
                   </button>
-
-                  <div className="mt-6 p-4 bg-gray-50 rounded-2xl flex gap-3">
-                    <Info size={14} className="text-gray-400 shrink-0" />
-                    <p className="text-[9px] text-gray-400 leading-relaxed uppercase font-bold tracking-tight">
-                      {isRevision
-                        ? "Important: This submission will overwrite the previously rejected documentation in the vault."
-                        : "Submissions are final once reviewed by an administrator."}
-                    </p>
-                  </div>
                 </div>
               </div>
             ) : (
@@ -402,10 +452,7 @@ const handleFileChange = (files: FileList | null) => {
                   className="mx-auto text-gray-300 mb-4 opacity-40"
                 />
                 <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest leading-loose">
-                  Registry Locked <br />
-                  <span className="bg-emerald-100 text-emerald-700 px-2 py-0.5 rounded ml-1">
-                    Verified Audit Item
-                  </span>
+                  Registry Locked
                 </p>
               </div>
             )}
@@ -424,7 +471,6 @@ const handleFileChange = (files: FileList | null) => {
 };
 
 /* --- SUB-COMPONENTS --- */
-
 const Badge = ({ icon, label, color }: any) => (
   <div
     className={`flex items-center gap-2 px-3 py-1.5 rounded-full border text-[9px] font-black uppercase tracking-widest ${color}`}
@@ -497,18 +543,14 @@ const NotFound = ({ navigate }: any) => (
     <h2 className="text-2xl font-serif font-bold mb-4 text-[#1E3A2B]">
       Registry Link Broken
     </h2>
-    <p className="text-sm text-gray-400 mb-10 max-w-xs leading-relaxed uppercase font-bold tracking-tighter">
-      The specified indicator does not exist or your access credentials have
-      expired.
-    </p>
     <button
       onClick={() => navigate(-1)}
-      className="group flex items-center gap-3 px-10 py-4 bg-[#1E3A2B] text-white text-[10px] font-black uppercase rounded-2xl tracking-[0.2em] shadow-2xl shadow-emerald-900/40 hover:-translate-y-1 transition-all"
+      className="group flex items-center gap-3 px-10 py-4 bg-[#1E3A2B] text-white text-[10px] font-black uppercase rounded-2xl tracking-[0.2em] shadow-2xl hover:-translate-y-1 transition-all"
     >
       <ArrowLeft
         size={14}
         className="group-hover:-translate-x-1 transition-transform"
-      />
+      />{" "}
       Return to Index
     </button>
   </div>
