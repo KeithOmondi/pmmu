@@ -307,40 +307,31 @@ export const submitIndicatorEvidence = createAsyncThunk<
     try {
       const form = new FormData();
 
-      // 1. Append Text Fields (descriptions)
-      // These will land in req.body.descriptions on the backend
-      descriptions.forEach((d) => {
-        form.append("descriptions", d);
-      });
-
-      // 2. Append Binary Files
-      // These will land in req.files on the backend
+      // 1. Append Binary Files (Multer array)
       files.forEach((f) => {
         form.append("files", f);
       });
 
-      // 3. API Call with Header Override
-      // We set Content-Type to undefined to override the global application/json default.
-      // This allows the browser to correctly set 'multipart/form-data' PLUS the 
-      // essential 'boundary' string required by Multer.
-      const { data } = await api.post(`/indicators/submit/${id}`, form, {
-        headers: {
-          "Content-Type": undefined,
-        },
+      // 2. Append Descriptions
+      descriptions.forEach((d) => {
+        form.append("descriptions", d);
       });
 
-      // Trigger local notification
+      // 3. API Call
+      // Note: We don't need to manually set Content-Type to undefined 
+      // if Axios detects FormData, but keeping it as a config is fine.
+      const { data } = await api.post(`/indicators/submit/${id}`, form);
+
       dispatch(
         addNotification(
           createNotif("Evidence Logged", "Files uploaded successfully.")
         )
       );
 
-      // Return the normalized indicator to update the Redux state
       return normalizeIndicator(data.indicator);
     } catch (err: any) {
-      const message = err.response?.data?.message || "Submission failed";
-      return rejectWithValue(message);
+      // Use your existing handleError helper here for consistency
+      return rejectWithValue(handleError(err, "Submission failed"));
     }
   }
 );

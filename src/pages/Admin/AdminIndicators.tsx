@@ -1,5 +1,4 @@
-// src/pages/Admin/AdminIndicators.tsx
-import React, { useEffect, useMemo,  useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { useAppDispatch, useAppSelector } from "../../store/hooks";
 import {
   fetchAllIndicatorsForAdmin,
@@ -10,19 +9,16 @@ import {
   fetchUsers,
   selectAllUsers,
   selectUsersLoading,
-  type IUser,
 } from "../../store/slices/userSlice";
 import {
   Loader2,
-  Eye,
   FolderOpen,
   User as UserIcon,
-  Users as GroupIcon, // Added for visual distinction
-  Calendar,
-  Layers,
+  Users as GroupIcon,
   Search,
-  ChevronRight,
   ShieldCheck,
+  Filter,
+  Clock,
 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 
@@ -36,26 +32,39 @@ const AdminIndicators: React.FC = () => {
   const usersLoading = useAppSelector(selectUsersLoading);
 
   const [searchTerm, setSearchTerm] = useState("");
-
-  const isLoading = loading || usersLoading;
+  const [selectedUserId, setSelectedUserId] = useState<string | "all">("all");
 
   useEffect(() => {
     dispatch(fetchAllIndicatorsForAdmin());
     dispatch(fetchUsers());
   }, [dispatch]);
 
-  // Filtering + Grouping Logic
-  const groupedIndicators = useMemo(() => {
-    const filtered = indicators.filter((ind) =>
-      ind.indicatorTitle.toLowerCase().includes(searchTerm.toLowerCase())
-    );
+  // 1. Filter indicators by Selected User + Search Term
+  const filteredIndicators = useMemo(() => {
+    return indicators.filter((ind) => {
+      const matchesSearch = ind.indicatorTitle
+        .toLowerCase()
+        .includes(searchTerm.toLowerCase());
 
+      if (selectedUserId === "all") return matchesSearch;
+
+      const matchesUser =
+        ind.assignedTo === selectedUserId ||
+        (ind.assignedToType === "group" &&
+          ind.assignedGroup.includes(selectedUserId));
+
+      return matchesUser && matchesSearch;
+    });
+  }, [indicators, searchTerm, selectedUserId]);
+
+  // 2. Group the filtered results by Category
+  const groupedIndicators = useMemo(() => {
     const result: Record<
       string,
       { category: { _id: string; title: string }; indicators: any[] }
     > = {};
 
-    filtered.forEach((ind) => {
+    filteredIndicators.forEach((ind) => {
       const category = ind.category ?? {
         _id: "uncategorized",
         title: "General Indicators",
@@ -65,244 +74,227 @@ const AdminIndicators: React.FC = () => {
       result[category._id].indicators.push(ind);
     });
     return result;
-  }, [indicators, searchTerm]);
+  }, [filteredIndicators]);
 
-  /**
-   * Helper to render Official/Custodian names based on assignment type
-   */
-  const renderOfficialNames = (indicator: any) => {
-    if (indicator.assignedToType === "individual") {
-      const user = users.find((u: IUser) => u._id === indicator.assignedTo);
-      return user ? user.name : "Individual Official";
-    }
+  // 3. Stats for the Sidebar
+  const userStats = useMemo(() => {
+    return users
+      .map((u) => ({
+        ...u,
+        count: indicators.filter(
+          (i) =>
+            i.assignedTo === u._id ||
+            (i.assignedToType === "group" && i.assignedGroup.includes(u._id)),
+        ).length,
+      }))
+      .sort((a, b) => b.count - a.count);
+  }, [users, indicators]);
 
-    if (indicator.assignedToType === "group") {
-      const groupNames = indicator.assignedGroup
-        .map((id: string) => users.find((u: IUser) => u._id === id)?.name)
-        .filter(Boolean);
-
-      return groupNames.length > 0 ? groupNames.join(", ") : "Assigned Group";
-    }
-
-    return "Unassigned";
-  };
-
-  if (isLoading) {
-    return (
-      <div className="flex flex-col justify-center items-center h-screen bg-[#f8f9fa]">
-        <Loader2 className="w-10 h-10 animate-spin text-[#1a3a32] mb-4" />
-        <p className="text-[#8c94a4] font-bold uppercase tracking-widest text-[10px]">
-          Accessing National Registry...
-        </p>
-      </div>
-    );
-  }
+  if (loading || usersLoading) return <LoadingState />;
 
   return (
-    <div className="min-h-screen p-4 sm:p-6 lg:p-10 bg-[#f8f9fa] space-y-6 sm:space-y-8">
-      {/* Page Header */}
-      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6 border-b border-gray-200 pb-6">
-        <div className="w-full md:w-auto">
-          <h1 className="text-2xl sm:text-3xl font-black text-[#1a3a32] tracking-tight flex items-center gap-3">
-            <Layers className="text-[#c2a336] shrink-0" size={28} />
-            Performance Indicators
-          </h1>
-          <p className="text-[#8c94a4] mt-1 font-medium text-xs sm:text-sm">
-            Judiciary Unified Oversight Registry •{" "}
-            <span className="text-[#c2a336]">Admin Verified Progress</span>
-          </p>
+    <div className="flex flex-col lg:flex-row min-h-screen bg-[#F8F9FA]">
+      {/* SIDEBAR: User Selection */}
+      <aside className="w-full lg:w-80 bg-white border-r border-gray-100 p-6 lg:h-screen lg:sticky lg:top-0 overflow-y-auto">
+        <div className="mb-8">
+          <h2 className="text-[10px] font-black uppercase tracking-[0.2em] text-[#c2a336] mb-4">
+            Official Registry
+          </h2>
+          <button
+            onClick={() => setSelectedUserId("all")}
+            className={`w-full flex justify-between items-center p-4 rounded-2xl transition-all mb-2 ${selectedUserId === "all" ? "bg-[#1a3a32] text-white shadow-lg" : "hover:bg-gray-50 text-gray-600"}`}
+          >
+            <div className="flex items-center gap-3">
+              <Filter size={16} />
+              <span className="text-xs font-bold">All Indicators</span>
+            </div>
+            <span className="text-[10px] opacity-60 font-black">
+              {indicators.length}
+            </span>
+          </button>
         </div>
 
-        <div className="relative w-full md:w-72">
-          <Search
-            className="absolute left-4 top-1/2 -translate-y-1/2 text-[#8c94a4]"
-            size={18}
-          />
-          <input
-            type="text"
-            placeholder="Search registry..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            className="w-full pl-12 pr-4 py-3 bg-white border border-gray-200 rounded-2xl focus:ring-2 focus:ring-[#c2a336] focus:border-transparent outline-none transition-all text-sm shadow-sm"
-          />
-        </div>
-      </div>
-
-      {!indicators.length ? (
-        <div className="bg-white rounded-[2rem] p-12 sm:p-20 text-center border border-dashed border-gray-200">
-          <FolderOpen className="w-16 h-16 text-gray-200 mx-auto mb-4" />
-          <p className="text-[#8c94a4] font-bold">
-            No records found in current session.
+        <nav className="space-y-1">
+          <p className="px-4 text-[9px] font-bold text-gray-400 uppercase tracking-widest mb-2">
+            Filter by Custodian
           </p>
-        </div>
-      ) : (
-        <div className="space-y-10 sm:space-y-12">
-          {Object.values(groupedIndicators).map((group) => (
-            <section
-              key={group.category._id}
-              className="animate-in fade-in slide-in-from-bottom-4 duration-500"
+          {userStats.map((user) => (
+            <button
+              key={user._id}
+              onClick={() => setSelectedUserId(user._id)}
+              className={`w-full flex items-center justify-between p-3 rounded-xl transition-all group ${selectedUserId === user._id ? "bg-emerald-50 text-[#1a3a32] border border-emerald-100" : "hover:bg-gray-50"}`}
             >
-              <div className="flex items-center justify-between mb-6 px-2">
-                <div className="flex items-center gap-3">
-                  <div className="h-6 w-1 bg-[#c2a336] rounded-full" />
-                  <h2 className="text-sm sm:text-lg font-black text-[#1a3a32] uppercase tracking-wider">
+              <div className="flex items-center gap-3 overflow-hidden">
+                <div
+                  className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 ${selectedUserId === user._id ? "bg-[#1a3a32] text-white" : "bg-gray-100 text-gray-400 group-hover:bg-white"}`}
+                >
+                  <UserIcon size={14} />
+                </div>
+                <div className="text-left overflow-hidden">
+                  <p className="text-[11px] font-bold truncate">{user.name}</p>
+                  <p className="text-[9px] text-gray-400 truncate uppercase">
+                    {user.role}
+                  </p>
+                </div>
+              </div>
+              {user.count > 0 && (
+                <span
+                  className={`text-[10px] font-black px-2 py-0.5 rounded-md ${selectedUserId === user._id ? "bg-[#1a3a32] text-white" : "bg-gray-100 text-gray-500"}`}
+                >
+                  {user.count}
+                </span>
+              )}
+            </button>
+          ))}
+        </nav>
+      </aside>
+
+      {/* MAIN CONTENT */}
+      <main className="flex-1 p-6 lg:p-12 max-w-6xl mx-auto w-full">
+        <header className="flex flex-col md:flex-row justify-between items-start md:items-end gap-6 mb-12">
+          <div>
+            <div className="flex items-center gap-2 mb-2">
+              <div className="h-1 w-6 bg-[#c2a336]" />
+              <span className="text-[10px] font-black uppercase tracking-widest text-[#c2a336]">
+                Performance Audit
+              </span>
+            </div>
+            <h1 className="text-3xl font-serif font-bold text-[#1a3a32]">
+              {selectedUserId === "all"
+                ? "Global Indicator Feed"
+                : users.find((u) => u._id === selectedUserId)?.name}
+            </h1>
+          </div>
+
+          <div className="relative w-full md:w-80 group">
+            <Search
+              className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 group-focus-within:text-[#c2a336] transition-colors"
+              size={18}
+            />
+            <input
+              type="text"
+              placeholder="Search specific record..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="w-full pl-12 pr-4 py-4 bg-white border-0 rounded-[1.5rem] shadow-sm focus:ring-2 focus:ring-[#c2a336] outline-none transition-all text-sm"
+            />
+          </div>
+        </header>
+
+        {filteredIndicators.length === 0 ? (
+          <EmptyState />
+        ) : (
+          <div className="space-y-16">
+            {Object.values(groupedIndicators).map((group) => (
+              <section key={group.category._id}>
+                <div className="flex items-center gap-4 mb-8">
+                  <h2 className="text-[11px] font-black uppercase tracking-[0.3em] text-gray-400">
                     {group.category.title}
                   </h2>
-                </div>
-                <span className="bg-[#1a3a32] text-[#c2a336] px-3 py-1 rounded-lg text-[10px] font-black uppercase">
-                  {group.indicators.length} Items
-                </span>
-              </div>
-
-              <div className="bg-white rounded-[1.5rem] sm:rounded-[2rem] shadow-xl shadow-black/[0.02] border border-gray-100 overflow-hidden">
-                {/* DESKTOP VIEW */}
-                <div className="hidden sm:block overflow-x-auto">
-                  <table className="min-w-full text-sm">
-                    <thead>
-                      <tr className="bg-[#fcfcfc] text-[#8c94a4] uppercase text-[10px] tracking-[0.15em] border-b border-gray-100">
-                        <th className="px-6 py-5 text-left font-black">Indicator</th>
-                        <th className="px-6 py-5 text-left font-black">Official</th>
-                        <th className="px-6 py-5 text-left font-black">Timeline</th>
-                        <th className="px-6 py-5 text-left font-black">Audit Progress</th>
-                        <th className="px-6 py-5 text-center font-black">Status</th>
-                        <th className="px-6 py-5 text-center font-black">Action</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-gray-50">
-                      {group.indicators.map((i) => (
-                        <tr
-                          key={i._id}
-                          className="hover:bg-gray-50/50 transition-colors group"
-                        >
-                          <td className="px-6 py-5">
-                            <div className="font-bold text-[#1a3a32] leading-tight mb-1">
-                              {i.indicatorTitle}
-                            </div>
-                            <div className="text-[10px] text-[#c2a336] font-black uppercase tracking-widest">
-                              {i.level2Category?.title ?? "Standard"}
-                            </div>
-                          </td>
-                          <td className="px-6 py-5">
-                            <div className="flex items-center gap-2">
-                              {i.assignedToType === "group" ? (
-                                <GroupIcon size={14} className="text-[#c2a336]" />
-                              ) : (
-                                <UserIcon size={14} className="text-[#8c94a4]" />
-                              )}
-                              <span className="text-[#1a3a32] font-bold text-[11px] max-w-[150px] line-clamp-1">
-                                {renderOfficialNames(i)}
-                              </span>
-                            </div>
-                          </td>
-                          <td className="px-6 py-5">
-                            <div className="flex items-center gap-2 text-[11px] text-gray-500 font-bold">
-                              <Calendar size={12} />
-                              {new Date(i.dueDate).toLocaleDateString()}
-                            </div>
-                          </td>
-                          <td className="px-6 py-5">
-                            <div className="flex items-center gap-2 mb-1">
-                              <ShieldCheck
-                                size={10}
-                                className="text-[#c2a336]"
-                              />
-                              <span className="text-[10px] font-black text-[#1a3a32]">
-                                {i.progress}% Verified
-                              </span>
-                            </div>
-                            <div className="w-24 bg-gray-100 rounded-full h-1.5">
-                              <div
-                                className="bg-[#1a3a32] h-1.5 rounded-full transition-all"
-                                style={{ width: `${i.progress}%` }}
-                              />
-                            </div>
-                          </td>
-                          <td className="px-6 py-5 text-center">
-                            <StatusBadge status={i.status} />
-                          </td>
-                          <td className="px-6 py-5 text-center">
-                            <button
-                              onClick={() =>
-                                navigate(`/admin/indicators/${i._id}`)
-                              }
-                              className="p-2 text-[#c2a336] hover:bg-[#1a3a32] hover:text-white rounded-xl transition-all shadow-sm"
-                            >
-                              <Eye size={18} />
-                            </button>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
+                  <div className="h-px flex-1 bg-gray-200/60" />
                 </div>
 
-                {/* MOBILE VIEW */}
-                <div className="sm:hidden divide-y divide-gray-50">
-                  {group.indicators.map((i) => (
-                    <div
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  {group.indicators.map((i: any) => (
+                    <IndicatorCard
                       key={i._id}
-                      className="p-5 active:bg-gray-50 transition-colors"
-                      onClick={() => navigate(`/admin/indicators/${i._id}`)}
-                    >
-                      <div className="flex justify-between items-start mb-3">
-                        <StatusBadge status={i.status} />
-                        <ChevronRight size={18} className="text-gray-300" />
-                      </div>
-                      <h4 className="font-bold text-[#1a3a32] leading-snug mb-1">
-                        {i.indicatorTitle}
-                      </h4>
-                      <div className="flex items-center gap-1.5 mb-4">
-                         <span className="text-[10px] text-slate-400 font-bold">
-                            {renderOfficialNames(i)}
-                         </span>
-                      </div>
-                      <div className="mt-4 pt-4 border-t border-gray-50">
-                        <div className="flex justify-between items-center mb-1">
-                          <span className="text-[9px] font-black uppercase text-[#c2a336] flex items-center gap-1">
-                            <ShieldCheck size={10} /> Admin Progress
-                          </span>
-                          <span className="text-[10px] font-black text-[#1a3a32]">
-                            {i.progress}%
-                          </span>
-                        </div>
-                        <div className="w-full bg-gray-100 rounded-full h-1.5">
-                          <div
-                            className="bg-[#1a3a32] h-1.5 rounded-full"
-                            style={{ width: `${i.progress}%` }}
-                          />
-                        </div>
-                      </div>
-                    </div>
+                      indicator={i}
+                      navigate={navigate}
+                    />
                   ))}
                 </div>
-              </div>
-            </section>
-          ))}
-        </div>
-      )}
+              </section>
+            ))}
+          </div>
+        )}
+      </main>
     </div>
   );
 };
 
-/* --- Sub-Components --- */
+/* --- SUB-COMPONENTS --- */
+
+const IndicatorCard = ({
+  indicator,
+  navigate,
+}: {
+  indicator: any;
+  navigate: any;
+}) => (
+  <div
+    onClick={() => navigate(`/admin/indicators/${indicator._id}`)}
+    className="group bg-white rounded-[2rem] p-6 border border-transparent hover:border-emerald-100 hover:shadow-2xl hover:shadow-emerald-900/5 transition-all cursor-pointer relative overflow-hidden"
+  >
+    <div className="flex justify-between items-start mb-6">
+      <StatusBadge status={indicator.status} />
+      <div className="flex -space-x-2">
+        <div className="w-8 h-8 rounded-full bg-gray-50 border-2 border-white flex items-center justify-center text-[#c2a336]">
+          {indicator.assignedToType === "group" ? (
+            <GroupIcon size={12} />
+          ) : (
+            <UserIcon size={12} />
+          )}
+        </div>
+      </div>
+    </div>
+
+    <h3 className="text-lg font-bold text-[#1a3a32] mb-2 leading-tight group-hover:text-[#c2a336] transition-colors line-clamp-2">
+      {indicator.indicatorTitle}
+    </h3>
+
+    <div className="flex items-center gap-4 text-[10px] text-gray-400 font-bold uppercase mb-6">
+      <span className="flex items-center gap-1">
+        <Clock size={12} /> {new Date(indicator.dueDate).toLocaleDateString()}
+      </span>
+      <span className="flex items-center gap-1">
+        <ShieldCheck size={12} /> {indicator.progress}%
+      </span>
+    </div>
+
+    <div className="w-full bg-gray-50 rounded-full h-1.5 overflow-hidden">
+      <div
+        className="bg-[#1a3a32] h-full transition-all duration-700"
+        style={{ width: `${indicator.progress}%` }}
+      />
+    </div>
+  </div>
+);
 
 const StatusBadge = ({ status }: { status: string }) => {
-  const styles =
-    {
-      approved: "bg-emerald-50 border-emerald-100 text-emerald-700",
-      completed: "bg-[#1a3a32] border-[#1a3a32] text-white",
-      pending: "bg-amber-50 border-amber-100 text-amber-700",
-      submitted: "bg-blue-50 border-blue-100 text-blue-700",
-      rejected: "bg-rose-50 border-rose-100 text-rose-700",
-    }[status] || "bg-gray-50 text-gray-600";
-
+  const colors: Record<string, string> = {
+    approved: "bg-emerald-50 text-emerald-700",
+    completed: "bg-[#1a3a32] text-white",
+    pending: "bg-amber-50 text-amber-700",
+    submitted: "bg-blue-50 text-blue-700",
+    rejected: "bg-rose-50 text-rose-700",
+  };
   return (
     <span
-      className={`px-2.5 py-1 rounded-lg text-[9px] font-black uppercase tracking-tighter border ${styles}`}
+      className={`px-3 py-1 rounded-full text-[9px] font-black uppercase tracking-widest ${colors[status] || "bg-gray-100"}`}
     >
       {status}
     </span>
   );
 };
+
+const LoadingState = () => (
+  <div className="h-screen flex flex-col items-center justify-center bg-[#F8F9FA]">
+    <Loader2 className="w-8 h-8 animate-spin text-[#c2a336] mb-4" />
+    <p className="text-[10px] font-black uppercase tracking-widest text-gray-400">
+      Filtering Registry...
+    </p>
+  </div>
+);
+
+const EmptyState = () => (
+  <div className="py-24 text-center">
+    <div className="w-20 h-20 bg-white rounded-[2rem] flex items-center justify-center mx-auto mb-6 shadow-sm">
+      <FolderOpen size={32} className="text-gray-200" />
+    </div>
+    <h3 className="text-sm font-bold text-gray-400 uppercase tracking-widest">
+      No matching records found
+    </h3>
+  </div>
+);
 
 export default AdminIndicators;
