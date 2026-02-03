@@ -146,25 +146,31 @@ const UserIndicatorDetail: React.FC = () => {
     setDescriptions((prev) => prev.map((d, i) => (i === index ? value : d)));
   };
 
-  /* --- UPDATED SUBMIT LOGIC --- */
-  const handleSubmit = async () => {
+ // Path: src/components/UserIndicatorDetail.tsx
+
+const handleSubmit = async () => {
   if (!indicator || !selectedFiles.length) return;
   
+  // 1. Strict Validation
   if (descriptions.some((d) => !d.trim())) {
     return toast.error("Description required for all files.");
   }
- 
+
   try {
-    // Pass the raw files and descriptions arrays directly
-    // This matches your 'SubmitEvidencePayload' interface
+    // 2. Data Alignment
+    // We slice the descriptions to match the EXACT number of files.
+    // This prevents the backend loop from hitting an 'undefined' description.
+    const alignedDescriptions = descriptions.slice(0, selectedFiles.length);
+
     await dispatch(
       submitIndicatorEvidence({
         id: indicator._id,
         files: selectedFiles,
-        descriptions: descriptions,
+        descriptions: alignedDescriptions,
       })
     ).unwrap();
 
+    // 3. Post-Submission Cleanup
     getSocket().emit("notification:new", {
       title: "Evidence Updated",
       message: `New documents added to ${indicator.indicatorTitle}`,
@@ -175,6 +181,7 @@ const UserIndicatorDetail: React.FC = () => {
     setDescriptions([]);
     toast.success("Evidence uploaded successfully");
   } catch (err: any) {
+    // This will now catch the "Validation Failed" if the Axios fix isn't applied
     toast.error(err || "Upload failed");
   }
 };
@@ -362,7 +369,16 @@ const UserIndicatorDetail: React.FC = () => {
         </div>
       </div>
 
-      {previewFile && <EvidencePreviewModal file={previewFile} onClose={() => setPreviewFile(null)} />}
+    
+
+
+{previewFile && (
+  <EvidencePreviewModal 
+    file={previewFile} 
+    indicatorId={indicator._id} // <--- ADD THIS LINE
+    onClose={() => setPreviewFile(null)} 
+  />
+)}
     </div>
   );
 };

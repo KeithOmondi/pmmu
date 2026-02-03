@@ -331,12 +331,14 @@ const SubmittedIndicatorDetail: React.FC = () => {
           onClose={() => setShowRejectModal(false)}
         />
       )}
-      {previewFile && (
-        <EvidencePreviewModal
-          file={previewFile}
-          onClose={() => setPreviewFile(null)}
-        />
-      )}
+      {/* Updated: Evidence Preview Modal */}
+{previewFile && indicator && (
+  <EvidencePreviewModal
+    file={previewFile}
+    indicatorId={indicator._id} // Fixed: Now providing the required ID for the backend fetch
+    onClose={() => setPreviewFile(null)}
+  />
+)}
     </div>
   );
 };

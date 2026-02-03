@@ -48,9 +48,7 @@ const SuperAdminApproved: React.FC = () => {
   const allUsers = useAppSelector(selectAllUsers) as IUser[];
 
   const [processingId, setProcessingId] = useState<string | null>(null);
-  const [selectedIndicator, setSelectedIndicator] = useState<IIndicator | null>(
-    null,
-  );
+  const [selectedIndicator, setSelectedIndicator] = useState<IIndicator | null>(null);
 
   useEffect(() => {
     dispatch(fetchAllIndicatorsForAdmin());
@@ -58,15 +56,11 @@ const SuperAdminApproved: React.FC = () => {
   }, [dispatch]);
 
   const reviewIndicators = useMemo(
-    () =>
-      indicators.filter(
-        (i) => i.status === "approved" || i.status === "completed",
-      ),
-    [indicators],
+    () => indicators.filter((i) => i.status === "approved" || i.status === "completed"),
+    [indicators]
   );
 
-  const isCompleted = (indicator: IIndicator) =>
-    indicator.status === "completed";
+  const isCompleted = (indicator: IIndicator) => indicator.status === "completed";
 
   const getAssignedName = (indicator: IIndicator) => {
     if (indicator.assignedToType === "group") return "Department Group";
@@ -88,12 +82,10 @@ const SuperAdminApproved: React.FC = () => {
             status: approve ? "completed" : "approved",
             reviewedAt: new Date().toISOString(),
           },
-        }),
+        })
       ).unwrap();
 
-      toast.success(
-        approve ? "Protocol Ratified & Locked" : "Returned for Further Review",
-      );
+      toast.success(approve ? "Protocol Ratified & Locked" : "Returned for Further Review");
       setSelectedIndicator(null);
     } catch (err: any) {
       toast.error(err || "Registry Update Failed");
@@ -130,10 +122,7 @@ const SuperAdminApproved: React.FC = () => {
                   {reviewIndicators.length.toString().padStart(2, "0")}
                 </p>
               </div>
-              <ShieldCheck
-                className="text-[#c2a336] drop-shadow-sm"
-                size={32}
-              />
+              <ShieldCheck className="text-[#c2a336] drop-shadow-sm" size={32} />
             </div>
           </div>
         </div>
@@ -157,11 +146,7 @@ const SuperAdminApproved: React.FC = () => {
                       : "bg-slate-100 text-[#1a3a32] group-hover:bg-[#1a3a32] group-hover:text-white"
                   }`}
                 >
-                  {isCompleted(i) ? (
-                    <CheckCircle2 size={24} />
-                  ) : (
-                    <FileText size={24} />
-                  )}
+                  {isCompleted(i) ? <CheckCircle2 size={24} /> : <FileText size={24} />}
                 </div>
                 <div>
                   <h4 className="font-extrabold text-[#1a3a32] text-lg leading-tight transition-colors group-hover:text-[#c2a336]">
@@ -181,11 +166,11 @@ const SuperAdminApproved: React.FC = () => {
 
               <div className="flex items-center gap-4">
                 <div className="hidden sm:flex flex-col items-end px-4 border-l border-gray-100">
-                  <span className="text-[9px] font-black text-gray-400 uppercase">
-                    Phase
-                  </span>
+                  <span className="text-[9px] font-black text-gray-400 uppercase">Phase</span>
                   <span
-                    className={`text-[11px] font-black uppercase ${i.status === "completed" ? "text-emerald-600" : "text-blue-600"}`}
+                    className={`text-[11px] font-black uppercase ${
+                      i.status === "completed" ? "text-emerald-600" : "text-blue-600"
+                    }`}
                   >
                     {i.status}
                   </span>
@@ -205,7 +190,7 @@ const SuperAdminApproved: React.FC = () => {
                     <Loader2 className="animate-spin" size={14} />
                   ) : (
                     "Ratify"
-                  )}{" "}
+                  )}
                   <ChevronRight size={14} />
                 </button>
               </div>
@@ -249,7 +234,6 @@ const AuditModal = ({
   processingId: string | null;
   assignedName: string;
 }) => {
-  // NEW: State for the file preview
   const [previewFile, setPreviewFile] = useState<IEvidence | null>(null);
 
   const compliance = useMemo(() => {
@@ -309,15 +293,9 @@ const AuditModal = ({
                     <AlertCircle size={16} /> No Registry Data
                   </div>
                 ) : (
-                  <div
-                    className={`flex flex-col gap-1 ${compliance.early ? "text-emerald-600" : "text-rose-600"}`}
-                  >
+                  <div className={`flex flex-col gap-1 ${compliance.early ? "text-emerald-600" : "text-rose-600"}`}>
                     <div className="flex items-center gap-2 font-black text-lg">
-                      {compliance.early ? (
-                        <CheckCircle2 size={20} />
-                      ) : (
-                        <Clock size={20} />
-                      )}
+                      {compliance.early ? <CheckCircle2 size={20} /> : <Clock size={20} />}
                       <span>{compliance.label}</span>
                     </div>
                     <span className="text-[10px] uppercase font-bold opacity-70">
@@ -335,10 +313,11 @@ const AuditModal = ({
                   <div className="flex items-center gap-2 text-lg font-bold">
                     <Calendar size={20} className="text-[#c2a336]" />
                     <span>
-                      {new Date(indicator.updatedAt).toLocaleDateString(
-                        "en-GB",
-                        { day: "2-digit", month: "long", year: "numeric" },
-                      )}
+                      {new Date(indicator.updatedAt).toLocaleDateString("en-GB", {
+                        day: "2-digit",
+                        month: "long",
+                        year: "numeric",
+                      })}
                     </span>
                   </div>
                   <span className="text-[10px] uppercase font-bold text-white/40">
@@ -348,7 +327,6 @@ const AuditModal = ({
               </div>
             </div>
 
-            {/* ATTRIBUTION SECTION */}
             <div className="grid grid-cols-2 gap-4 py-6 border-y border-slate-100">
               <div className="px-2">
                 <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">
@@ -369,7 +347,6 @@ const AuditModal = ({
               </div>
             </div>
 
-            {/* EVIDENCE SECTION - CLICKABLE FILES */}
             <div className="space-y-4">
               <div className="flex items-center justify-between">
                 <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">
@@ -384,21 +361,16 @@ const AuditModal = ({
                   {indicator.evidence.map((ev: IEvidence, idx: number) => (
                     <div
                       key={idx}
-                      onClick={() => setPreviewFile(ev)} // TRIGGER PREVIEW HERE
+                      onClick={() => setPreviewFile(ev)}
                       className="group p-4 bg-slate-50 border border-slate-100 rounded-2xl flex items-center justify-between transition-all hover:bg-white hover:border-[#c2a336]/40 hover:shadow-md cursor-pointer"
                     >
                       <div className="flex items-center gap-4 overflow-hidden">
                         <div className="w-10 h-10 rounded-xl bg-white flex items-center justify-center text-slate-400 group-hover:text-[#c2a336] border border-slate-100 group-hover:border-[#c2a336]/20 transition-all">
                           <FileText size={18} />
                         </div>
-                        <p className="text-sm font-bold text-slate-600 truncate">
-                          {ev.fileName}
-                        </p>
+                        <p className="text-sm font-bold text-slate-600 truncate">{ev.fileName}</p>
                       </div>
-                      <ChevronRight
-                        size={14}
-                        className="text-slate-300 group-hover:text-[#c2a336]"
-                      />
+                      <ChevronRight size={14} className="text-slate-300 group-hover:text-[#c2a336]" />
                     </div>
                   ))}
                 </div>
@@ -421,20 +393,14 @@ const AuditModal = ({
             </button>
             <div className="flex items-center gap-3">
               <button
-                disabled={
-                  processingId === indicator._id ||
-                  indicator.status === "completed"
-                }
+                disabled={processingId === indicator._id || indicator.status === "completed"}
                 onClick={() => onReview(indicator, false)}
                 className="px-8 py-4 bg-rose-50 text-rose-600 text-[10px] font-black uppercase rounded-2xl hover:bg-rose-600 hover:text-white transition-all border border-rose-100"
               >
                 Return Case
               </button>
               <button
-                disabled={
-                  processingId === indicator._id ||
-                  indicator.status === "completed"
-                }
+                disabled={processingId === indicator._id || indicator.status === "completed"}
                 onClick={() => onReview(indicator, true)}
                 className="flex items-center gap-2 px-10 py-4 bg-[#1a3a32] text-white text-[10px] font-black uppercase rounded-2xl hover:bg-[#c2a336] transition-all shadow-lg"
               >
@@ -450,24 +416,12 @@ const AuditModal = ({
         </div>
       </div>
 
-     
-    {/* EVIDENCE PREVIEW OVERLAY */}
-
-      {/* NEW: Evidence Preview Modal Overlay */}
       {previewFile && (
-        <div className="fixed inset-0 z-[2000] flex items-center justify-center">
-          {/* We add an extra backdrop here specifically for the preview */}
-          <div 
-            className="absolute inset-0 bg-black/60 backdrop-blur-md" 
-            onClick={() => setPreviewFile(null)} 
-          />
-          <div className="relative z-[2100] w-full max-w-4xl h-[90vh]">
-            <EvidencePreviewModal
-              file={previewFile}
-              onClose={() => setPreviewFile(null)}
-            />
-          </div>
-        </div>
+        <EvidencePreviewModal
+          file={previewFile}
+          indicatorId={indicator._id}
+          onClose={() => setPreviewFile(null)}
+        />
       )}
     </>
   );

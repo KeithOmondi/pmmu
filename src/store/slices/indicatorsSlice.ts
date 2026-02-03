@@ -28,6 +28,7 @@ export interface INote {
 }
 
 export interface IEvidence {
+  _id: string;
   type: "file";
   fileName: string;
   fileSize: number;
@@ -36,7 +37,6 @@ export interface IEvidence {
   resourceType: "raw" | "image" | "video";
   cloudinaryType: "authenticated";
   format: string;
-  previewUrl: string;
   description?: string;
 }
 
@@ -102,6 +102,29 @@ export interface UpdateProgressPayload {
 /* =====================================================
     HELPERS
 ===================================================== */
+const handleError = (err: unknown, fallback: string) => {
+  if (err && typeof err === "object" && "isAxiosError" in err) {
+    const axiosErr = err as AxiosError<{ message?: string }>;
+    return axiosErr.response?.data?.message ?? fallback;
+  }
+  return (err as Error)?.message ?? fallback;
+};
+
+const createNotif = (title: string, message: string) => ({
+  _id: `notif-${Date.now()}`,
+  title,
+  message,
+  read: false,
+  createdAt: new Date().toISOString(),
+});
+
+const updateList = (list: IIndicator[], updated: IIndicator) =>
+  list.map((i) => (i._id === updated._id ? updated : i));
+
+/**
+ * Normalize raw API data into IIndicator
+ * (No preview URLs persisted here)
+ */
 const normalizeIndicator = (raw: any): IIndicator => ({
   ...raw,
   indicatorTitle: raw.indicatorTitle ?? "",
@@ -113,32 +136,40 @@ const normalizeIndicator = (raw: any): IIndicator => ({
     ...n,
     createdBy: n.createdBy?._id ?? n.createdBy ?? null,
   })),
-  evidence: (raw.evidence || []).map((e: any) => ({ ...e, type: "file" })),
+  evidence: (raw.evidence || []).map((e: any) => ({
+    ...e,
+    type: "file",
+  })),
 });
 
-const handleError = (err: unknown, fallback: string) => {
-  if (err && typeof err === "object" && "isAxiosError" in err) {
-    const axiosErr = err as AxiosError<{ message?: string }>;
-    return axiosErr.response?.data?.message ?? fallback;
-  }
-  return (err as Error)?.message ?? fallback;
+/* =====================================================
+    SLICE STATE
+===================================================== */
+interface IndicatorState {
+  userIndicators: IIndicator[];
+  allIndicators: IIndicator[];
+  submittedIndicators: IIndicator[];
+  loading: boolean;
+  submittingEvidence: boolean;
+  previewUrls: Record<string, string>; // evidenceId → signed URL
+  error: string | null;
+}
+
+const initialState: IndicatorState = {
+  userIndicators: [],
+  allIndicators: [],
+  submittedIndicators: [],
+  loading: false,
+  submittingEvidence: false,
+  previewUrls: {},
+  error: null,
 };
-
-const updateList = (list: IIndicator[], updated: IIndicator) =>
-  list.map((i) => (i._id === updated._id ? updated : i));
-
-const createNotif = (title: string, message: string) => ({
-  _id: `notif-${Date.now()}`,
-  title,
-  message,
-  read: false,
-  createdAt: new Date().toISOString(),
-});
 
 /* =====================================================
     THUNKS
 ===================================================== */
 
+// Fetch all indicators (admin)
 export const fetchAllIndicatorsForAdmin = createAsyncThunk<
   IIndicator[],
   void,
@@ -152,6 +183,7 @@ export const fetchAllIndicatorsForAdmin = createAsyncThunk<
   }
 });
 
+// Fetch indicators assigned to current user
 export const fetchUserIndicators = createAsyncThunk<
   IIndicator[],
   void,
@@ -165,6 +197,7 @@ export const fetchUserIndicators = createAsyncThunk<
   }
 });
 
+// Fetch submitted indicators
 export const fetchSubmittedIndicators = createAsyncThunk<
   IIndicator[],
   void,
@@ -178,6 +211,7 @@ export const fetchSubmittedIndicators = createAsyncThunk<
   }
 });
 
+// Create indicator
 export const createIndicator = createAsyncThunk<
   IIndicator,
   CreateIndicatorPayload,
@@ -185,18 +219,18 @@ export const createIndicator = createAsyncThunk<
 >("indicators/create", async (payload, { dispatch, rejectWithValue }) => {
   try {
     const { data } = await api.post("/indicators/create", payload);
-    const indicator = normalizeIndicator(data.indicator);
     dispatch(
       addNotification(
         createNotif("Success", "Indicator created successfully."),
       ),
     );
-    return indicator;
+    return normalizeIndicator(data.indicator);
   } catch (err) {
     return rejectWithValue(handleError(err, "Creation failed"));
   }
 });
 
+// Update indicator
 export const updateIndicator = createAsyncThunk<
   IIndicator,
   UpdateIndicatorPayload,
@@ -206,48 +240,47 @@ export const updateIndicator = createAsyncThunk<
   async ({ id, updates }, { dispatch, rejectWithValue }) => {
     try {
       const { data } = await api.put(`/indicators/update/${id}`, updates);
-      const indicator = normalizeIndicator(data.indicator);
       dispatch(
         addNotification(
-          createNotif("Success", "Registry record updated successfully."),
+          createNotif("Success", "Indicator updated successfully."),
         ),
       );
-      return indicator;
-    } catch (err: any) {
+      return normalizeIndicator(data.indicator);
+    } catch (err) {
       return rejectWithValue(handleError(err, "Update failed"));
     }
   },
 );
 
+// Approve indicator
 export const approveIndicator = createAsyncThunk<
   IIndicator,
-  { id: string; notes?: string }, // Change from string to object
+  { id: string; notes?: string },
   { rejectValue: string }
->("indicators/approve", async ({ id, notes }, { dispatch, rejectWithValue }) => {
-  try {
-    // We pass { notes } as the second argument to create the request body
-    const { data } = await api.put(`/indicators/approve/${id}`, { notes });
-    
-    const indicator = normalizeIndicator(data.indicator);
-    const isFinal = indicator.status === "completed";
-    
-    dispatch(
-      addNotification(
-        createNotif(
-          isFinal ? "Finalized" : "Verified",
-          isFinal
-            ? "Record archived as completed."
-            : "Record verified; pending ratification.",
+>(
+  "indicators/approve",
+  async ({ id, notes }, { dispatch, rejectWithValue }) => {
+    try {
+      const { data } = await api.put(`/indicators/approve/${id}`, { notes });
+      const indicator = normalizeIndicator(data.indicator);
+      dispatch(
+        addNotification(
+          createNotif(
+            indicator.status === "completed" ? "Finalized" : "Verified",
+            indicator.status === "completed"
+              ? "Record archived as completed."
+              : "Record verified; pending ratification.",
+          ),
         ),
-      ),
-    );
-    
-    return indicator;
-  } catch (err) {
-    return rejectWithValue(handleError(err, "Approval failed"));
-  }
-});
+      );
+      return indicator;
+    } catch (err) {
+      return rejectWithValue(handleError(err, "Approval failed"));
+    }
+  },
+);
 
+// Reject indicator
 export const rejectIndicator = createAsyncThunk<
   IIndicator,
   { id: string; notes: string },
@@ -264,6 +297,7 @@ export const rejectIndicator = createAsyncThunk<
   }
 });
 
+// Delete indicator
 export const deleteIndicator = createAsyncThunk<
   string,
   string,
@@ -271,17 +305,14 @@ export const deleteIndicator = createAsyncThunk<
 >("indicators/delete", async (id, { dispatch, rejectWithValue }) => {
   try {
     await api.delete(`/indicators/delete/${id}`);
-    dispatch(
-      addNotification(
-        createNotif("Purged", "Indicator removed from registry."),
-      ),
-    );
+    dispatch(addNotification(createNotif("Purged", "Indicator removed.")));
     return id;
   } catch (err) {
     return rejectWithValue(handleError(err, "Deletion failed"));
   }
 });
 
+// Update progress
 export const updateIndicatorProgress = createAsyncThunk<
   IIndicator,
   UpdateProgressPayload,
@@ -297,6 +328,7 @@ export const updateIndicatorProgress = createAsyncThunk<
   }
 });
 
+// Submit evidence
 export const submitIndicatorEvidence = createAsyncThunk<
   IIndicator,
   SubmitEvidencePayload,
@@ -306,57 +338,54 @@ export const submitIndicatorEvidence = createAsyncThunk<
   async ({ id, files, descriptions = [] }, { dispatch, rejectWithValue }) => {
     try {
       const form = new FormData();
+      files.forEach((file) => form.append("files", file));
+      descriptions.forEach((desc) => form.append("descriptions", desc));
 
-      // 1. Append Binary Files (Multer array)
-      files.forEach((f) => {
-        form.append("files", f);
-      });
+      const { data } = await api.post(
+  `/indicators/submit/${id}`,
+  form,
+  {
+    headers: {
+      "Content-Type": "multipart/form-data",
+    },
+  }
+);
 
-      // 2. Append Descriptions
-      descriptions.forEach((d) => {
-        form.append("descriptions", d);
-      });
-
-      // 3. API Call
-      // Note: We don't need to manually set Content-Type to undefined 
-      // if Axios detects FormData, but keeping it as a config is fine.
-      const { data } = await api.post(`/indicators/submit/${id}`, form);
 
       dispatch(
         addNotification(
-          createNotif("Evidence Logged", "Files uploaded successfully.")
-        )
+          createNotif("Evidence Logged", "Files uploaded successfully."),
+        ),
       );
-
       return normalizeIndicator(data.indicator);
-    } catch (err: any) {
-      // Use your existing handleError helper here for consistency
+    } catch (err) {
       return rejectWithValue(handleError(err, "Submission failed"));
     }
-  }
+  },
+);
+
+// Fetch secure evidence preview URL
+export const fetchEvidencePreviewUrl = createAsyncThunk<
+  { evidenceId: string; previewUrl: string },
+  { indicatorId: string; evidenceId: string },
+  { rejectValue: string }
+>(
+  "indicators/fetchPreviewUrl",
+  async ({ indicatorId, evidenceId }, { rejectWithValue }) => {
+    try {
+      const { data } = await api.get(
+        `/indicators/${indicatorId}/evidence/${evidenceId}/preview`,
+      );
+      return { evidenceId, previewUrl: data.url };
+    } catch (err) {
+      return rejectWithValue(handleError(err, "Failed to fetch preview URL"));
+    }
+  },
 );
 
 /* =====================================================
     SLICE
 ===================================================== */
-interface IndicatorState {
-  userIndicators: IIndicator[];
-  allIndicators: IIndicator[];
-  submittedIndicators: IIndicator[];
-  loading: boolean;
-  submittingEvidence: boolean;
-  error: string | null;
-}
-
-const initialState: IndicatorState = {
-  userIndicators: [],
-  allIndicators: [],
-  submittedIndicators: [],
-  loading: false,
-  submittingEvidence: false,
-  error: null,
-};
-
 const indicatorSlice = createSlice({
   name: "indicators",
   initialState,
@@ -364,10 +393,12 @@ const indicatorSlice = createSlice({
     clearMessages: (state) => {
       state.error = null;
     },
+    clearPreviewUrls: (state) => {
+      state.previewUrls = {};
+    },
   },
   extraReducers: (builder) => {
     builder
-      /* FETCH HANDLERS */
       .addCase(fetchAllIndicatorsForAdmin.fulfilled, (state, action) => {
         state.allIndicators = action.payload;
       })
@@ -377,13 +408,9 @@ const indicatorSlice = createSlice({
       .addCase(fetchSubmittedIndicators.fulfilled, (state, action) => {
         state.submittedIndicators = action.payload;
       })
-
-      /* CREATE HANDLER */
       .addCase(createIndicator.fulfilled, (state, action) => {
         state.allIndicators = [action.payload, ...state.allIndicators];
       })
-
-      /* DELETE HANDLER */
       .addCase(deleteIndicator.fulfilled, (state, action) => {
         const id = action.payload;
         state.allIndicators = state.allIndicators.filter((i) => i._id !== id);
@@ -392,8 +419,6 @@ const indicatorSlice = createSlice({
           (i) => i._id !== id,
         );
       })
-
-      /* EVIDENCE LOADING STATE */
       .addCase(submitIndicatorEvidence.pending, (state) => {
         state.submittingEvidence = true;
       })
@@ -409,8 +434,10 @@ const indicatorSlice = createSlice({
       .addCase(submitIndicatorEvidence.rejected, (state) => {
         state.submittingEvidence = false;
       })
-
-      /* UNIFIED UPDATER (MATCHERS) */
+      .addCase(fetchEvidencePreviewUrl.fulfilled, (state, action) => {
+        state.previewUrls[action.payload.evidenceId] =
+          action.payload.previewUrl;
+      })
       .addMatcher(
         (action): action is PayloadAction<IIndicator> =>
           action.type.endsWith("/update/fulfilled") ||
@@ -429,8 +456,6 @@ const indicatorSlice = createSlice({
           );
         },
       )
-
-      /* GLOBAL PENDING */
       .addMatcher(
         (action) =>
           action.type.endsWith("/pending") && !action.type.includes("submit"),
@@ -439,8 +464,6 @@ const indicatorSlice = createSlice({
           state.error = null;
         },
       )
-
-      /* GLOBAL FINISHED */
       .addMatcher(
         (action) =>
           action.type.endsWith("/fulfilled") ||
@@ -455,9 +478,11 @@ const indicatorSlice = createSlice({
   },
 });
 
-export const { clearMessages } = indicatorSlice.actions;
+export const { clearMessages, clearPreviewUrls } = indicatorSlice.actions;
 
-/* SELECTORS */
+/* =====================================================
+    SELECTORS
+===================================================== */
 export const selectUserIndicators = (s: RootState) =>
   s.indicators.userIndicators;
 export const selectAllIndicators = (s: RootState) => s.indicators.allIndicators;
@@ -467,5 +492,6 @@ export const selectIndicatorsLoading = (s: RootState) => s.indicators.loading;
 export const selectIndicatorsError = (s: RootState) => s.indicators.error;
 export const selectSubmittingEvidence = (s: RootState) =>
   s.indicators.submittingEvidence;
+export const selectPreviewUrls = (s: RootState) => s.indicators.previewUrls;
 
 export default indicatorSlice.reducer;
