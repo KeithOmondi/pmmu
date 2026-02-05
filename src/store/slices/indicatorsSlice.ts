@@ -11,6 +11,7 @@ import type { AxiosError } from "axios";
 /* =====================================================
     DOMAIN & PAYLOAD TYPES
 ===================================================== */
+
 export type IndicatorStatus =
   | "pending"
   | "submitted"
@@ -102,6 +103,7 @@ export interface UpdateProgressPayload {
 /* =====================================================
     HELPERS
 ===================================================== */
+
 const handleError = (err: unknown, fallback: string) => {
   if (err && typeof err === "object" && "isAxiosError" in err) {
     const axiosErr = err as AxiosError<{ message?: string }>;
@@ -122,8 +124,8 @@ const updateList = (list: IIndicator[], updated: IIndicator) =>
   list.map((i) => (i._id === updated._id ? updated : i));
 
 /**
- * Normalize raw API data into IIndicator
- * (No preview URLs persisted here)
+ * Normalize API payload into frontend-safe shape
+ * NOTE: preview URLs are NOT persisted here
  */
 const normalizeIndicator = (raw: any): IIndicator => ({
   ...raw,
@@ -139,19 +141,21 @@ const normalizeIndicator = (raw: any): IIndicator => ({
   evidence: (raw.evidence || []).map((e: any) => ({
     ...e,
     type: "file",
+    version: e.version ?? 0, // ✅ default version
   })),
 });
 
 /* =====================================================
     SLICE STATE
 ===================================================== */
+
 interface IndicatorState {
   userIndicators: IIndicator[];
   allIndicators: IIndicator[];
   submittedIndicators: IIndicator[];
   loading: boolean;
   submittingEvidence: boolean;
-  previewUrls: Record<string, string>; // evidenceId → signed URL
+  previewUrls: Record<string, string>; // publicId → signed URL
   error: string | null;
 }
 
@@ -169,7 +173,6 @@ const initialState: IndicatorState = {
     THUNKS
 ===================================================== */
 
-// Fetch all indicators (admin)
 export const fetchAllIndicatorsForAdmin = createAsyncThunk<
   IIndicator[],
   void,
@@ -183,7 +186,6 @@ export const fetchAllIndicatorsForAdmin = createAsyncThunk<
   }
 });
 
-// Fetch indicators assigned to current user
 export const fetchUserIndicators = createAsyncThunk<
   IIndicator[],
   void,
@@ -197,7 +199,6 @@ export const fetchUserIndicators = createAsyncThunk<
   }
 });
 
-// Fetch submitted indicators
 export const fetchSubmittedIndicators = createAsyncThunk<
   IIndicator[],
   void,
@@ -211,7 +212,6 @@ export const fetchSubmittedIndicators = createAsyncThunk<
   }
 });
 
-// Create indicator
 export const createIndicator = createAsyncThunk<
   IIndicator,
   CreateIndicatorPayload,
@@ -230,7 +230,6 @@ export const createIndicator = createAsyncThunk<
   }
 });
 
-// Update indicator
 export const updateIndicator = createAsyncThunk<
   IIndicator,
   UpdateIndicatorPayload,
@@ -252,7 +251,6 @@ export const updateIndicator = createAsyncThunk<
   },
 );
 
-// Approve indicator
 export const approveIndicator = createAsyncThunk<
   IIndicator,
   { id: string; notes?: string },
@@ -280,7 +278,6 @@ export const approveIndicator = createAsyncThunk<
   },
 );
 
-// Reject indicator
 export const rejectIndicator = createAsyncThunk<
   IIndicator,
   { id: string; notes: string },
@@ -297,7 +294,6 @@ export const rejectIndicator = createAsyncThunk<
   }
 });
 
-// Delete indicator
 export const deleteIndicator = createAsyncThunk<
   string,
   string,
@@ -312,7 +308,6 @@ export const deleteIndicator = createAsyncThunk<
   }
 });
 
-// Update progress
 export const updateIndicatorProgress = createAsyncThunk<
   IIndicator,
   UpdateProgressPayload,
@@ -328,7 +323,6 @@ export const updateIndicatorProgress = createAsyncThunk<
   }
 });
 
-// Submit evidence
 export const submitIndicatorEvidence = createAsyncThunk<
   IIndicator,
   SubmitEvidencePayload,
@@ -339,18 +333,11 @@ export const submitIndicatorEvidence = createAsyncThunk<
     try {
       const form = new FormData();
       files.forEach((file) => form.append("files", file));
-      descriptions.forEach((desc) => form.append("descriptions", desc));
+      descriptions.forEach((d) => form.append("descriptions", d));
 
-      const { data } = await api.post(
-  `/indicators/submit/${id}`,
-  form,
-  {
-    headers: {
-      "Content-Type": "multipart/form-data",
-    },
-  }
-);
-
+      const { data } = await api.post(`/indicators/submit/${id}`, form, {
+        headers: { "Content-Type": "multipart/form-data" },
+      });
 
       dispatch(
         addNotification(
@@ -364,28 +351,69 @@ export const submitIndicatorEvidence = createAsyncThunk<
   },
 );
 
-// Fetch secure evidence preview URL
 export const fetchEvidencePreviewUrl = createAsyncThunk<
-  { evidenceId: string; previewUrl: string },
-  { indicatorId: string; evidenceId: string },
-  { rejectValue: string }
+  { publicId: string; previewUrl: string; version: number },
+  { indicatorId: string; publicId: string },
+  {
+    state: RootState;
+    rejectValue: string;
+  }
 >(
   "indicators/fetchPreviewUrl",
-  async ({ indicatorId, evidenceId }, { rejectWithValue }) => {
+  async ({ indicatorId, publicId }, { getState, rejectWithValue }) => {
     try {
-      const { data } = await api.get(
-        `/indicators/${indicatorId}/evidence/${evidenceId}/preview`,
+      // 🔒 HARD DEDUPE
+      const existing = getState().indicators.previewUrls[publicId];
+      if (existing) {
+        return {
+          publicId,
+          previewUrl: existing,
+          version: 0,
+        };
+      }
+
+      const response = await api.get(
+        `/indicators/${indicatorId}/preview-evidence`,
+        { params: { publicId } },
       );
-      return { evidenceId, previewUrl: data.url };
+
+      const baseUrl: string = response.data?.url;
+      const rawVersion = response.data?.version;
+
+      // 👀 make the version explicit
+      const version =
+        typeof rawVersion === "number"
+          ? rawVersion
+          : Number(rawVersion) || 0;
+
+      // 👀 build URL step-by-step
+      const previewUrl = `${baseUrl}?v=${version}`;
+
+      // 🔍 optional: temporary debug
+      console.debug("[Preview URL]", {
+        publicId,
+        baseUrl,
+        rawVersion,
+        version,
+        previewUrl,
+      });
+
+      return {
+        publicId,
+        previewUrl,
+        version,
+      };
     } catch (err) {
       return rejectWithValue(handleError(err, "Failed to fetch preview URL"));
     }
   },
 );
 
+
 /* =====================================================
     SLICE
 ===================================================== */
+
 const indicatorSlice = createSlice({
   name: "indicators",
   initialState,
@@ -395,6 +423,10 @@ const indicatorSlice = createSlice({
     },
     clearPreviewUrls: (state) => {
       state.previewUrls = {};
+    },
+    // Add this one:
+    removeSpecificPreviewUrl: (state, action: PayloadAction<string>) => {
+      delete state.previewUrls[action.payload];
     },
   },
   extraReducers: (builder) => {
@@ -409,7 +441,7 @@ const indicatorSlice = createSlice({
         state.submittedIndicators = action.payload;
       })
       .addCase(createIndicator.fulfilled, (state, action) => {
-        state.allIndicators = [action.payload, ...state.allIndicators];
+        state.allIndicators.unshift(action.payload);
       })
       .addCase(deleteIndicator.fulfilled, (state, action) => {
         const id = action.payload;
@@ -435,9 +467,9 @@ const indicatorSlice = createSlice({
         state.submittingEvidence = false;
       })
       .addCase(fetchEvidencePreviewUrl.fulfilled, (state, action) => {
-        state.previewUrls[action.payload.evidenceId] =
-          action.payload.previewUrl;
+        state.previewUrls[action.payload.publicId] = action.payload.previewUrl;
       })
+
       .addMatcher(
         (action): action is PayloadAction<IIndicator> =>
           action.type.endsWith("/update/fulfilled") ||
@@ -478,11 +510,13 @@ const indicatorSlice = createSlice({
   },
 });
 
-export const { clearMessages, clearPreviewUrls } = indicatorSlice.actions;
+export const { clearMessages, clearPreviewUrls, removeSpecificPreviewUrl } =
+  indicatorSlice.actions;
 
 /* =====================================================
     SELECTORS
 ===================================================== */
+
 export const selectUserIndicators = (s: RootState) =>
   s.indicators.userIndicators;
 export const selectAllIndicators = (s: RootState) => s.indicators.allIndicators;
