@@ -126,6 +126,26 @@ const AdminSidebar = () => {
               inactiveClass={inactiveClass}
               linkClass={linkClass}
             />
+
+            <SidebarLink
+              to="/admin/rejections"
+              icon={<FileText size={18} />}
+              label="Rejected Items"
+              isCollapsed={isCollapsed}
+              activeClass={activeClass}
+              inactiveClass={inactiveClass}
+              linkClass={linkClass}
+            />
+
+            <SidebarLink
+              to="/admin/uploads"
+              icon={<FileText size={18} />}
+              label="Upload Evidence"
+              isCollapsed={isCollapsed}
+              activeClass={activeClass}
+              inactiveClass={inactiveClass}
+              linkClass={linkClass}
+            />
             
           </div>
 

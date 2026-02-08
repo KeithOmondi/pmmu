@@ -1,59 +1,35 @@
 import { Navigate, Outlet } from "react-router-dom";
-import { useEffect, useState } from "react";
-import type { Role } from "../store/slices/authSlice";
-import { useAppSelector, useAppDispatch } from "../store/hooks";
-import { refreshUser } from "../store/slices/authSlice";
+import { useAppSelector } from "../store/hooks";
 
-interface ProtectedRouteProps {
-  allowedRoles?: Role[];
+interface Props {
+  allowedRoles: string[];
 }
 
-const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ allowedRoles }) => {
-  const dispatch = useAppDispatch();
-  const { isAuthenticated, user, loading } = useAppSelector((state) => state.auth);
+const ProtectedRoute = ({ allowedRoles }: Props) => {
+  const { isAuthenticated, isCheckingAuth, user } = useAppSelector(
+    (state) => state.auth
+  );
 
-  const [refreshAttempted, setRefreshAttempted] = useState(false);
-  const [refreshLoading, setRefreshLoading] = useState(false);
-
-  useEffect(() => {
-    const tryRefresh = async () => {
-      if (!isAuthenticated && !refreshAttempted) {
-        setRefreshLoading(true);
-        setRefreshAttempted(true);
-
-        try {
-          // Dispatch refresh thunk to get user and access token
-          await dispatch(refreshUser()).unwrap();
-        } catch (err) {
-          console.warn("Refresh token failed or expired", err);
-        } finally {
-          setRefreshLoading(false);
-        }
-      }
-    };
-
-    tryRefresh();
-  }, [isAuthenticated, refreshAttempted, dispatch]);
-
-  if (loading || refreshLoading) {
+  // 🔹 While checking auth (refresh in progress), show nothing or a loader
+  if (isCheckingAuth) {
     return (
-      <div className="min-h-screen flex items-center justify-center text-slate-500 text-sm">
-        Authenticating…
+      <div className="flex justify-center items-center h-screen">
+        <p>Loading...</p>
       </div>
     );
   }
 
-  // ❌ NOT authenticated
-  if (!isAuthenticated || !user) {
+  // 🔹 Not authenticated → redirect to login
+  if (!isAuthenticated) {
     return <Navigate to="/login" replace />;
   }
 
-  // ❌ Role not allowed
-  if (allowedRoles && !allowedRoles.includes(user.role)) {
+  // 🔹 Authenticated but role not allowed → redirect to unauthorized page
+  if (user && !allowedRoles.includes(user.role)) {
     return <Navigate to="/unauthorized" replace />;
   }
 
-  // ✅ Authenticated & authorized
+  // 🔹 All good → render nested routes
   return <Outlet />;
 };
 

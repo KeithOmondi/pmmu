@@ -143,15 +143,16 @@ const SuperAdminSidebar = () => {
           {isCollapsed && <div className="w-8 h-[1px] bg-white/10" />}
         </div>
 
-        <NavItem
-          to="/superadmin/settings"
+<NavItem
+          to="/superadmin/log"
           icon={<Settings size={18} />}
-          label="System Settings"
+          label="Users Acitivities"
           isCollapsed={isCollapsed}
           activeClass={activeClass}
           inactiveClass={inactiveClass}
           linkClass={linkClass}
         />
+        
 
         <NavItem
           to="/superadmin/notifications"
@@ -176,6 +177,15 @@ const SuperAdminSidebar = () => {
           to="/superadmin/logs"
           icon={<Logs size={18} />}
           label="Logs"
+          isCollapsed={isCollapsed}
+          activeClass={activeClass}
+          inactiveClass={inactiveClass}
+          linkClass={linkClass}
+        />
+        <NavItem
+          to="/superadmin/settings"
+          icon={<Settings size={18} />}
+          label="System Settings"
           isCollapsed={isCollapsed}
           activeClass={activeClass}
           inactiveClass={inactiveClass}

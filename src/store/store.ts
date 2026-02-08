@@ -5,7 +5,10 @@ import indicatorsReducer from "./slices/indicatorsSlice";
 import usersReducer from "./slices/userSlice";
 import notificationsindicatorsReducer from "./slices/notificationsSlice";
 import reportsReducer from "./slices/reportsSlice";
-import adminReducer from "./slices/adminSlice"
+import adminReducer from "./slices/adminSlice";
+import streamReducer from "./slices/streamSlice";
+import indicatorEvidenceReducer from "./slices/indicators/evidenceSlice"
+import scoreReducer from "./slices/scoreSlice";
 
 export const store = configureStore({
   reducer: {
@@ -15,7 +18,10 @@ export const store = configureStore({
     notifications: notificationsindicatorsReducer,
     users: usersReducer,
     reports: reportsReducer,
-    admin: adminReducer
+    admin: adminReducer,
+    stream: streamReducer,
+    indicatorEvidence: indicatorEvidenceReducer,
+    score: scoreReducer,
   },
   middleware: (getDefaultMiddleware) =>
     getDefaultMiddleware({ serializableCheck: false }),

@@ -1,14 +1,13 @@
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { useEffect } from "react";
 import { useAppSelector, useAppDispatch } from "./store/hooks";
-import { refreshUser } from "./store/slices/authSlice";
+import { checkAuthStatus } from "./store/slices/authSlice";
 
-// Pages
+// Pages & Components
 import Login from "./pages/Login";
 import Unauthorized from "./pages/Unauthorized";
-
-// Protected route wrapper
 import ProtectedRoute from "./routes/ProtectedRoute";
+import NotificationsListener from "./components/Notifications/NotificationsListener";
 
 // SuperAdmin
 import SuperAdminLayout from "./components/SuperAdmin/SuperAdminLayout";
@@ -17,6 +16,11 @@ import SuperAdminIndicators from "./pages/SuperAdmin/SuperAdminIndicators";
 import SuperAdminUser from "./pages/SuperAdmin/SupperAdminUser";
 import SuperAdminApproved from "./pages/SuperAdmin/SuperAdminApproved";
 import SuperAdminReports from "./pages/SuperAdmin/SuperAdminReports";
+import SuperAdminNotificationComposer from "./pages/SuperAdmin/SuperAdminNotificationComposer";
+import SuperAdminSettings from "./pages/SuperAdmin/SuperAdminSettings";
+import SuperAdminLogs from "./pages/SuperAdmin/SuperAminLogs";
+import SuperAdminRejected from "./pages/SuperAdmin/SuperAdminRejected";
+import SuperAdminUserActivities from "./pages/SuperAdmin/SperAdminUserActivities";
 
 // Admin
 import AdminLayout from "./components/Admin/AdminLayout";
@@ -25,6 +29,9 @@ import AdminIndicators from "./pages/Admin/AdminIndicators";
 import AdminIndicatorDetail from "./pages/Admin/AdminIndicatorDetail";
 import SubmittedIndicators from "./pages/Admin/SubmittedIndicators";
 import SubmittedIndicatorDetail from "./pages/Admin/SubmittedIndicatorDetail";
+import AdminReports from "./pages/Admin/AdminReports";
+import AdminSettings from "./pages/Admin/AdminSettings";
+import AdminUploadsPage from "./pages/Admin/AdminUploads";
 
 // User
 import UserLayout from "./components/User/UserLayout";
@@ -32,56 +39,61 @@ import UserDashboard from "./pages/User/UserDashboard";
 import UserIndicators from "./pages/User/UserIndicators";
 import UserIndicatorDetail from "./pages/User/UserIndicatorDetail";
 import UserProfile from "./pages/User/UserProfile";
-import SuperAdminNotificationComposer from "./pages/SuperAdmin/SuperAdminNotificationComposer";
-import NotificationsListener from "./components/Notifications/NotificationsListener";
 import UserReport from "./pages/User/UserReports";
-import AdminReports from "./pages/Admin/AdminReports";
-import AdminSettings from "./pages/Admin/AdminSettings";
-import SuperAdminSettings from "./pages/SuperAdmin/SuperAdminSettings";
-import SuperAdminLogs from "./pages/SuperAdmin/SuperAminLogs";
-import SuperAdminRejected from "./pages/SuperAdmin/SuperAdminRejected";
+import UserRejectionsPage from "./pages/User/UserRejections";
+import AdminRejectionsPage from "./pages/Admin/AdminRejections";
 
 const App = () => {
   const dispatch = useAppDispatch();
-  const { user, loading: authLoading, isAuthenticated } = useAppSelector(
+  const { user, isCheckingAuth, isAuthenticated } = useAppSelector(
     (state) => state.auth
   );
 
-  /* =========================
-     RESTORE SESSION ON LOAD
-  ========================= */
+  // Session rehydration on mount
   useEffect(() => {
-    const token = localStorage.getItem("accessToken");
+    dispatch(checkAuthStatus());
+  }, [dispatch]);
 
-    if (token && !isAuthenticated) {
-            dispatch(refreshUser());
+  // Request Notification permission
+  useEffect(() => {
+    if ("Notification" in window && Notification.permission !== "granted") {
+      Notification.requestPermission();
     }
-  }, [dispatch, isAuthenticated]);
+  }, []);
 
-  useEffect(() => {
-  if ("Notification" in window && Notification.permission !== "granted") {
-    Notification.requestPermission();
-  }
-}, []);
-
-
-  /* =========================
-     BLOCK ROUTING WHILE AUTH CHECKS
-  ========================= */
-  if (authLoading) {
+  // Guard rendering while checking auth
+  if (isCheckingAuth) {
     return (
-      <div className="flex justify-center items-center h-screen">
-        Loading...
+      <div className="flex flex-col justify-center items-center h-screen bg-[#F8F9FA]">
+        <div className="w-8 h-8 border-4 border-[#C69214] border-t-transparent animate-spin rounded-full mb-4" />
+        <p className="text-[10px] font-black uppercase tracking-widest text-gray-400">
+          Verifying Session...
+        </p>
       </div>
     );
   }
 
+  // Helper to get user dashboard path safely
+  const getDashboardPath = () => {
+    if (!user?.role) return "/login";
+    return `/${user.role.toLowerCase()}/dashboard`;
+  };
+
   return (
     <BrowserRouter>
-    <NotificationsListener />
+      <NotificationsListener />
       <Routes>
         {/* PUBLIC */}
-        <Route path="/login" element={<Login />} />
+        <Route
+          path="/login"
+          element={
+            isAuthenticated && user ? (
+              <Navigate to={getDashboardPath()} replace />
+            ) : (
+              <Login />
+            )
+          }
+        />
         <Route path="/unauthorized" element={<Unauthorized />} />
 
         {/* SUPER ADMIN */}
@@ -93,9 +105,13 @@ const App = () => {
             <Route path="approved" element={<SuperAdminApproved />} />
             <Route path="rejected" element={<SuperAdminRejected />} />
             <Route path="reports" element={<SuperAdminReports />} />
-            <Route path="notifications" element={<SuperAdminNotificationComposer />} />
+            <Route
+              path="notifications"
+              element={<SuperAdminNotificationComposer />}
+            />
             <Route path="settings" element={<SuperAdminSettings />} />
             <Route path="logs" element={<SuperAdminLogs />} />
+            <Route path="log" element={<SuperAdminUserActivities />} />
           </Route>
         </Route>
 
@@ -106,12 +122,14 @@ const App = () => {
             <Route path="indicators" element={<AdminIndicators />} />
             <Route path="indicators/:id" element={<AdminIndicatorDetail />} />
             <Route path="submitted" element={<SubmittedIndicators />} />
-            <Route path="reports" element={<AdminReports />} />
-            <Route path="settings" element={<AdminSettings />} />
             <Route
               path="submitted/:id"
               element={<SubmittedIndicatorDetail />}
             />
+            <Route path="reports" element={<AdminReports />} />
+            <Route path="settings" element={<AdminSettings />} />
+            <Route path="uploads" element={<AdminUploadsPage />} />
+            <Route path="rejections" element={<AdminRejectionsPage />} />
           </Route>
         </Route>
 
@@ -123,6 +141,7 @@ const App = () => {
             <Route path="indicators/:id" element={<UserIndicatorDetail />} />
             <Route path="profile" element={<UserProfile />} />
             <Route path="reports" element={<UserReport />} />
+            <Route path="rejections" element={<UserRejectionsPage />} />
           </Route>
         </Route>
 
@@ -130,15 +149,19 @@ const App = () => {
         <Route
           path="/"
           element={
-            <Navigate
-              to={user ? `/${user.role.toLowerCase()}` : "/login"}
-              replace
-            />
+            isAuthenticated && user ? (
+              <Navigate to={getDashboardPath()} replace />
+            ) : (
+              <Navigate to="/login" replace />
+            )
           }
         />
 
         {/* 404 */}
-        <Route path="*" element={<div>Page not found</div>} />
+        <Route
+          path="*"
+          element={<div className="p-10">Page not found</div>}
+        />
       </Routes>
     </BrowserRouter>
   );

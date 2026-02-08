@@ -33,27 +33,33 @@ interface AuthResponse {
 interface AuthState {
   user: User | null;
   loading: boolean;
-  error: string | null;
+  isCheckingAuth: boolean;
   isAuthenticated: boolean;
+  error: string | null;
 
   otpSent: boolean;
   otpMessage: string | null;
   otpCooldown: number;
 
-  pjNumber: string | null; // ✅ FIX: persist pjNumber across OTP steps
+  pjNumber: string | null;
 }
+
+/* =========================
+   INITIAL STATE
+========================= */
 
 const initialState: AuthState = {
   user: null,
   loading: false,
-  error: null,
+  isCheckingAuth: true,
   isAuthenticated: false,
+  error: null,
 
   otpSent: false,
   otpMessage: null,
   otpCooldown: 0,
 
-  pjNumber: null, // ✅
+  pjNumber: null,
 };
 
 /* =========================
@@ -67,11 +73,41 @@ const normalizeRole = (role: string): Role => {
   return "User";
 };
 
+const storeAccessToken = (token?: string) => {
+  if (token) localStorage.setItem("accessToken", token);
+};
+
+const clearAccessToken = () => {
+  localStorage.removeItem("accessToken");
+};
+
 /* =========================
    THUNKS
 ========================= */
 
-// 1. REQUEST LOGIN OTP
+/**
+ * 🔁 Rehydrate auth using refresh token (cookie-based)
+ * Runs once on app mount
+ */
+export const checkAuthStatus = createAsyncThunk<
+  AuthResponse,
+  void,
+  { rejectValue: string }
+>("auth/checkAuthStatus", async (_, { rejectWithValue }) => {
+  try {
+    const { data } = await api.post<AuthResponse>("/auth/refresh");
+
+    storeAccessToken(data.accessToken);
+    return data;
+  } catch (err: any) {
+    clearAccessToken();
+    return rejectWithValue(err.response?.data?.message || "Session expired");
+  }
+});
+
+/**
+ * 📩 Request login OTP
+ */
 export const requestLoginOtp = createAsyncThunk<
   AuthResponse,
   { pjNumber: string },
@@ -84,109 +120,75 @@ export const requestLoginOtp = createAsyncThunk<
     return data;
   } catch (err: any) {
     return rejectWithValue(
-      err.response?.data?.message || "Failed to request OTP"
+      err.response?.data?.message || "Failed to request OTP",
     );
   }
 });
 
-// 2. RESEND LOGIN OTP
+/**
+ * 🔄 Resend OTP
+ */
 export const resendLoginOtp = createAsyncThunk<
   AuthResponse,
   void,
   { state: { auth: AuthState }; rejectValue: string }
 >("auth/resendLoginOtp", async (_, { getState, rejectWithValue }) => {
+  const pjNumber = getState().auth.pjNumber;
+  if (!pjNumber)
+    return rejectWithValue("PJ Number missing. Please restart login.");
+
   try {
-    const pjNumber = getState().auth.pjNumber;
-
-    if (!pjNumber) {
-      return rejectWithValue("PJ Number missing. Please restart login.");
-    }
-
     const { data } = await api.post<AuthResponse>("/auth/login/resend-otp", {
       pjNumber,
     });
     return data;
   } catch (err: any) {
     return rejectWithValue(
-      err.response?.data?.message || "Failed to resend OTP"
+      err.response?.data?.message || "Failed to resend OTP",
     );
   }
 });
 
-// 3. VERIFY OTP
+/**
+ * ✅ Verify OTP & receive access token
+ */
 export const verifyLoginOtp = createAsyncThunk<
   AuthResponse,
   { otp: string },
   { state: { auth: AuthState }; rejectValue: string }
 >("auth/verifyLoginOtp", async ({ otp }, { getState, rejectWithValue }) => {
+  const pjNumber = getState().auth.pjNumber;
+  if (!pjNumber)
+    return rejectWithValue("PJ Number missing. Please restart login.");
+
   try {
-    const pjNumber = getState().auth.pjNumber;
-
-    if (!pjNumber) {
-      return rejectWithValue("PJ Number missing. Please restart login.");
-    }
-
     const { data } = await api.post<AuthResponse>("/auth/login/verify-otp", {
       pjNumber,
       otp,
     });
 
-    if (data.accessToken) {
-      localStorage.setItem("accessToken", data.accessToken);
-    }
-
+    storeAccessToken(data.accessToken);
     return data;
   } catch (err: any) {
     return rejectWithValue(
-      err.response?.data?.message || "OTP verification failed"
+      err.response?.data?.message || "OTP verification failed",
     );
   }
 });
 
-// 4. REFRESH SESSION
-export const refreshUser = createAsyncThunk<
-  AuthResponse,
-  void,
-  { rejectValue: string }
->("auth/refreshUser", async (_, { rejectWithValue }) => {
-  try {
-    const { data } = await api.post<AuthResponse>("/auth/refresh");
-
-    if (data.accessToken) {
-      localStorage.setItem("accessToken", data.accessToken);
-    }
-
-    return data;
-  } catch (err: any) {
-    return rejectWithValue(err.response?.data?.message || "Session expired");
-  }
-});
-
-// 5. UPDATE PROFILE
-export const updateProfile = createAsyncThunk<
-  AuthResponse,
-  FormData,
-  { rejectValue: string }
->("auth/updateProfile", async (formData, { rejectWithValue }) => {
-  try {
-    const { data } = await api.put<AuthResponse>("/users/profile", formData);
-    return data;
-  } catch (err: any) {
-    return rejectWithValue(err.response?.data?.message || "Update failed");
-  }
-});
-
-// 6. LOGOUT
+/**
+ * 🚪 Logout (invalidate refresh token server-side)
+ */
 export const logout = createAsyncThunk<void, void, { dispatch: AppDispatch }>(
   "auth/logout",
   async (_, { dispatch }) => {
     try {
       await api.post("/auth/logout");
     } finally {
-      localStorage.removeItem("accessToken");
+      clearAccessToken();
       dispatch(fetchMyNotifications());
     }
-  }
+  },
 );
 
 /* =========================
@@ -207,20 +209,47 @@ const authSlice = createSlice({
       state.otpSent = false;
       state.otpMessage = null;
       state.otpCooldown = 0;
-      state.pjNumber = null; // ✅ reset login flow
+      state.pjNumber = null;
+    },
+    forceLogout(state) {
+      state.user = null;
+      state.isAuthenticated = false;
+      state.loading = false;
+      state.isCheckingAuth = false;
+      state.error = null;
+      clearAccessToken();
     },
     setOtpCooldown(state, action: PayloadAction<number>) {
       state.otpCooldown = action.payload;
     },
     decrementOtpCooldown(state) {
-      if (state.otpCooldown > 0) {
-        state.otpCooldown -= 1;
-      }
+      if (state.otpCooldown > 0) state.otpCooldown -= 1;
     },
   },
+
   extraReducers: (builder) => {
     builder
-      /* --- REQUEST OTP --- */
+      /* 🔁 Refresh / Rehydrate */
+      .addCase(checkAuthStatus.pending, (state) => {
+        state.isCheckingAuth = true;
+      })
+      .addCase(checkAuthStatus.fulfilled, (state, action) => {
+        state.isCheckingAuth = false;
+        state.isAuthenticated = true;
+        state.user = action.payload.user
+          ? {
+              ...action.payload.user,
+              role: normalizeRole(action.payload.user.role),
+            }
+          : null;
+      })
+      .addCase(checkAuthStatus.rejected, (state) => {
+        state.isCheckingAuth = false;
+        state.isAuthenticated = false;
+        state.user = null;
+      })
+
+      /* 📩 Request OTP */
       .addCase(requestLoginOtp.pending, (state) => {
         state.loading = true;
         state.error = null;
@@ -228,77 +257,40 @@ const authSlice = createSlice({
       .addCase(requestLoginOtp.fulfilled, (state, action) => {
         state.loading = false;
         state.otpSent = true;
-        state.otpMessage = action.payload.message || "OTP sent successfully";
+        state.otpMessage = action.payload.message;
         state.otpCooldown = 60;
-        state.pjNumber = action.meta.arg.pjNumber; // ✅ CRITICAL FIX
+        state.pjNumber = action.meta.arg.pjNumber;
       })
       .addCase(requestLoginOtp.rejected, (state, action) => {
         state.loading = false;
         state.error = action.payload as string;
       })
 
-      /* --- RESEND OTP --- */
-      .addCase(resendLoginOtp.fulfilled, (state, action) => {
-        state.otpMessage = action.payload.message || "OTP resent successfully";
-        state.otpCooldown = 60;
-      })
-
-      /* --- VERIFY OTP --- */
+      /* ✅ Verify OTP */
       .addCase(verifyLoginOtp.pending, (state) => {
         state.loading = true;
         state.error = null;
       })
       .addCase(verifyLoginOtp.fulfilled, (state, action) => {
         state.loading = false;
+        state.isAuthenticated = true;
         state.user = action.payload.user
           ? {
               ...action.payload.user,
               role: normalizeRole(action.payload.user.role),
             }
           : null;
-
-        state.isAuthenticated = !!action.payload.accessToken;
-        state.otpSent = false;
-        state.otpMessage = null;
-        state.otpCooldown = 0;
-        state.pjNumber = null; // ✅ clear after success
+        state.pjNumber = null;
       })
       .addCase(verifyLoginOtp.rejected, (state, action) => {
         state.loading = false;
         state.error = action.payload as string;
       })
 
-      /* --- REFRESH --- */
-      .addCase(refreshUser.fulfilled, (state, action) => {
-        state.user = action.payload.user
-          ? {
-              ...action.payload.user,
-              role: normalizeRole(action.payload.user.role),
-            }
-          : null;
-
-        state.isAuthenticated = !!action.payload.accessToken;
-      })
-
-      /* --- UPDATE PROFILE --- */
-      .addCase(updateProfile.fulfilled, (state, action) => {
-        if (action.payload.success && action.payload.user) {
-          state.user = {
-            ...action.payload.user,
-            role: normalizeRole(action.payload.user.role),
-          };
-        }
-      })
-
-      /* --- LOGOUT --- */
+      /* 🚪 Logout */
       .addCase(logout.fulfilled, (state) => {
         state.user = null;
         state.isAuthenticated = false;
-        state.loading = false;
-        state.otpSent = false;
-        state.otpMessage = null;
-        state.otpCooldown = 0;
-        state.pjNumber = null;
       });
   },
 });
@@ -309,6 +301,7 @@ export const {
   resetOtpState,
   setOtpCooldown,
   decrementOtpCooldown,
+  forceLogout,
 } = authSlice.actions;
 
 export default authSlice.reducer;

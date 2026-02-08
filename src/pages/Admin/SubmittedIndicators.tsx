@@ -1,3 +1,4 @@
+// src/pages/Admin/SubmittedIndicators.tsx
 import React, { useEffect, useMemo, useState } from "react";
 import { useAppDispatch, useAppSelector } from "../../store/hooks";
 import {
@@ -38,7 +39,7 @@ const SubmittedIndicators: React.FC = () => {
     dispatch(fetchUsers());
   }, [dispatch]);
 
-  // 1. Sidebar Stats: Count submissions per user
+  // 1. Sidebar Stats: Sort Officials A-Z
   const userSubmissionStats = useMemo(() => {
     return users
       .map((user) => {
@@ -54,13 +55,14 @@ const SubmittedIndicators: React.FC = () => {
           pending: userItems.filter((i) => i.status === "submitted").length,
         };
       })
-      .filter((u) => u.total > 0) // Only show users who actually have submissions
-      .sort((a, b) => b.pending - a.pending); // Prioritize users with pending items
+      .filter((u) => u.total > 0)
+      // UPDATED: Sorted Alphabetically by Name
+      .sort((a, b) => a.name.localeCompare(b.name)); 
   }, [users, indicators]);
 
-  // 2. Filter Main Content
+  // 2. Filter & Sort Main Content A-Z
   const filteredSubmissions = useMemo(() => {
-    return indicators.filter((i) => {
+    const filtered = indicators.filter((i) => {
       const matchesUser =
         selectedUserId === "all" ||
         i.assignedTo === selectedUserId ||
@@ -72,6 +74,11 @@ const SubmittedIndicators: React.FC = () => {
         .includes(searchTerm.toLowerCase());
       return matchesUser && matchesSearch;
     });
+
+    // UPDATED: Sort indicators A-Z by Title
+    return [...filtered].sort((a, b) => 
+      a.indicatorTitle.localeCompare(b.indicatorTitle)
+    );
   }, [indicators, selectedUserId, searchTerm]);
 
   if (indicatorsLoading || usersLoading) return <LoadingState />;
@@ -88,7 +95,7 @@ const SubmittedIndicators: React.FC = () => {
             </h2>
           </div>
           <p className="text-white/60 text-[11px] font-medium">
-            Clear the verification backlog
+            Verified verification backlog (A-Z)
           </p>
         </div>
 
@@ -107,7 +114,7 @@ const SubmittedIndicators: React.FC = () => {
 
           <div className="pt-6 pb-2 px-4">
             <span className="text-[9px] font-black text-gray-400 uppercase tracking-[0.2em]">
-              Pending by Official
+              Officials List (A-Z)
             </span>
           </div>
 
@@ -148,12 +155,12 @@ const SubmittedIndicators: React.FC = () => {
           <div>
             <h1 className="text-2xl font-serif font-bold text-[#1a3a32]">
               {selectedUserId === "all"
-                ? "Verification Queue"
+                ? "Global Verification Feed"
                 : `Review: ${users.find((u) => u._id === selectedUserId)?.name}`}
             </h1>
             <div className="flex items-center gap-4 mt-2">
               <span className="text-[10px] font-black text-[#c2a336] uppercase tracking-widest bg-[#c2a336]/10 px-2 py-0.5 rounded">
-                {filteredSubmissions.length} Documents
+                {filteredSubmissions.length} Documents Sorted A-Z
               </span>
             </div>
           </div>
@@ -192,7 +199,7 @@ const SubmittedIndicators: React.FC = () => {
   );
 };
 
-/* --- SUB-COMPONENTS --- */
+/* --- SUB-COMPONENTS REMAIN THE SAME --- */
 
 const SubmissionRow = ({
   indicator,

@@ -9,6 +9,7 @@ import {
   ChevronRight,
   ChevronLeft,
   LogOut,
+  ReceiptRussianRubleIcon,
 } from "lucide-react";
 import { useAppDispatch } from "../../store/hooks"; // adjust path
 import { logout } from "../../store/slices/authSlice";
@@ -106,6 +107,15 @@ const UserSidebar = () => {
           to="/user/indicators"
           icon={<Target size={18} />}
           label="Performance"
+          isCollapsed={isCollapsed}
+          baseClass={linkClass}
+          activeClass={activeClass}
+          inactiveClass={inactiveClass}
+        />
+        <SidebarLink
+          to="/user/rejections"
+          icon={<ReceiptRussianRubleIcon size={18} />}
+          label="Rejections"
           isCollapsed={isCollapsed}
           baseClass={linkClass}
           activeClass={activeClass}

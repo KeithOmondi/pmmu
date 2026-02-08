@@ -86,6 +86,27 @@ export const deleteUser = createAsyncThunk<string, string, { rejectValue: string
   }
 );
 
+
+// =========================
+// UPDATE USER PROFILE (Self)
+// =========================
+export const updateUserProfile = createAsyncThunk<
+  IUser,
+  FormData,
+  { rejectValue: string }
+>(
+  "users/updateUserProfile",
+  async (formData, { rejectWithValue }) => {
+    try {
+      const res = await api.put("/users/profile", formData);
+      return res.data.user; // backend returns { success, user }
+    } catch (err: any) {
+      return rejectWithValue(err.response?.data?.message || "Failed to update profile");
+    }
+  }
+);
+
+
 /* =========================
    SLICE
 ========================= */
@@ -125,6 +146,27 @@ const userSlice = createSlice({
           state.users[index] = action.payload;
         }
       })
+
+      .addCase(updateUserProfile.pending, (state) => {
+      state.loading = true;
+      state.error = null;
+    })
+    .addCase(updateUserProfile.fulfilled, (state, action: PayloadAction<IUser>) => {
+      state.loading = false;
+
+      // Update user in the list if exists
+      const index = state.users.findIndex(u => u._id === action.payload._id);
+      if (index !== -1) {
+        state.users[index] = action.payload;
+      } else {
+        // Otherwise, add to the list (optional)
+        state.users.unshift(action.payload);
+      }
+    })
+    .addCase(updateUserProfile.rejected, (state, action) => {
+      state.loading = false;
+      state.error = action.payload as string;
+    })
 
       /* DELETE USER */
       .addCase(deleteUser.fulfilled, (state, action) => {

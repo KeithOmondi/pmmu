@@ -1,66 +1,128 @@
-import { createSlice, createAsyncThunk } from '@reduxjs/toolkit';
-import api from '../../api/axios';
+import { createSlice, createAsyncThunk, type PayloadAction } from "@reduxjs/toolkit";
+import api from "../../api/axios";
 
-interface Log {
-  message: string;
-  timestamp: string;
-  level: string;
+/* =========================
+   TYPES
+========================= */
+
+export interface Log {
+  message?: string;
+  timestamp?: string;
+  level?: string;
+  type?: string;
+  userId?: string;
+  email?: string;
+  role?: string;
+  loginAt?: string;
+  logoutAt?: string;
+  durationMinutes?: number;
   [key: string]: any;
+}
+
+export interface OnlineUser {
+  userId: string;
+  email: string;
+  role: string;
+  loginAt: string;
+  ip: string;
+  userAgent: string;
+  sessionKey: string;
 }
 
 interface AdminState {
   logs: Log[];
+  onlineUsers: OnlineUser[];
   loading: boolean;
   error: string | null;
 }
 
+/* =========================
+   INITIAL STATE
+========================= */
+
 const initialState: AdminState = {
   logs: [],
+  onlineUsers: [],
   loading: false,
   error: null,
 };
 
-// AsyncThunk to fetch logs
-export const fetchActivityFeed = createAsyncThunk(
-  'admin/fetchActivityFeed',
-  async (_, { rejectWithValue }) => {
-    try {
-      const response = await api.get('/admin/activity-feed');
-      return response.data.logs; // This matches your controller's JSON structure
-    } catch (err: any) {
-      return rejectWithValue(err.response?.data?.message || 'Failed to fetch logs');
-    }
-  }
-);
+/* =========================
+   ASYNC THUNKS
+========================= */
 
-// AsyncThunk to clear logs
-export const clearActivityFeedAction = createAsyncThunk(
-  'admin/clearActivityFeed',
-  async (_, { rejectWithValue }) => {
-    try {
-      await api.delete('/admin/activity-feed/clear');
-      return []; // Return empty array to reset state
-    } catch (err: any) {
-      return rejectWithValue(err.response?.data?.message || 'Failed to clear logs');
-    }
+// Fetch activity logs
+export const fetchActivityFeed = createAsyncThunk<
+  Log[],
+  void,
+  { rejectValue: string }
+>("admin/fetchActivityFeed", async (_, { rejectWithValue }) => {
+  try {
+    const response = await api.get("/admin/activity-feed");
+    return response.data.logs;
+  } catch (err: any) {
+    return rejectWithValue(
+      err.response?.data?.message || "Failed to fetch logs"
+    );
   }
-);
+});
+
+// Clear activity logs
+export const clearActivityFeedAction = createAsyncThunk<
+  void,
+  void,
+  { rejectValue: string }
+>("admin/clearActivityFeed", async (_, { rejectWithValue }) => {
+  try {
+    await api.delete("/admin/activity-feed/clear");
+  } catch (err: any) {
+    return rejectWithValue(
+      err.response?.data?.message || "Failed to clear logs"
+    );
+  }
+});
+
+// ✅ Fetch currently online users
+export const fetchOnlineUsers = createAsyncThunk<
+  OnlineUser[],
+  void,
+  { rejectValue: string }
+>("admin/fetchOnlineUsers", async (_, { rejectWithValue }) => {
+  try {
+    const response = await api.get("/admin/users/online-users");
+    return response.data.users;
+  } catch (err: any) {
+    return rejectWithValue(
+      err.response?.data?.message || "Failed to fetch online users"
+    );
+  }
+});
+
+/* =========================
+   SLICE
+========================= */
 
 const adminSlice = createSlice({
-  name: 'admin',
+  name: "admin",
   initialState,
   reducers: {
-    // Optional: If you use Socket.io to push a single new log, use this
-    addNewLog: (state, action) => {
-      state.logs.unshift(action.payload); // Add to the top
-      if (state.logs.length > 100) state.logs.pop(); // Keep it at 100
+    // For socket.io / SSE real-time logs
+    addNewLog: (state, action: PayloadAction<Log>) => {
+      state.logs.unshift(action.payload);
+      if (state.logs.length > 100) state.logs.pop();
+    },
+
+    // Optional: live update online users (socket/SSE)
+    setOnlineUsers: (state, action: PayloadAction<OnlineUser[]>) => {
+      state.onlineUsers = action.payload;
     },
   },
   extraReducers: (builder) => {
     builder
-      // Fetch Cases
+      /* ===== ACTIVITY FEED ===== */
       .addCase(fetchActivityFeed.pending, (state) => {
         state.loading = true;
+        state.error = null;
       })
       .addCase(fetchActivityFeed.fulfilled, (state, action) => {
         state.loading = false;
@@ -68,14 +130,33 @@ const adminSlice = createSlice({
       })
       .addCase(fetchActivityFeed.rejected, (state, action) => {
         state.loading = false;
-        state.error = action.payload as string;
+        state.error = action.payload ?? null;
       })
-      // Clear Cases
+
+      /* ===== CLEAR FEED ===== */
       .addCase(clearActivityFeedAction.fulfilled, (state) => {
         state.logs = [];
+      })
+
+      /* ===== ONLINE USERS ===== */
+      .addCase(fetchOnlineUsers.pending, (state) => {
+        state.loading = true;
+        state.error = null;
+      })
+      .addCase(fetchOnlineUsers.fulfilled, (state, action) => {
+        state.loading = false;
+        state.onlineUsers = action.payload;
+      })
+      .addCase(fetchOnlineUsers.rejected, (state, action) => {
+        state.loading = false;
+        state.error = action.payload ?? null;
       });
   },
 });
 
-export const { addNewLog } = adminSlice.actions;
+/* =========================
+   EXPORTS
+========================= */
+
+export const { addNewLog, setOnlineUsers } = adminSlice.actions;
 export default adminSlice.reducer;

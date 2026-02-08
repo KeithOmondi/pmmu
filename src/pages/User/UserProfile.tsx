@@ -9,9 +9,9 @@ import {
   BadgeCheck,
   Camera,
 } from "lucide-react";
-import { updateProfile } from "../../store/slices/authSlice";
 import type { RootState } from "../../store/store";
 import toast from "react-hot-toast";
+import { updateUserProfile } from "../../store/slices/userSlice";
 
 const UserProfile: React.FC = () => {
   const dispatch = useAppDispatch();
@@ -73,7 +73,7 @@ const UserProfile: React.FC = () => {
       }
 
       // 1. Dispatch and wait for the Redux state to be updated with the backend response
-      await dispatch(updateProfile(data)).unwrap();
+      await dispatch(updateUserProfile(data)).unwrap();
 
       toast.success("Personnel credentials updated successfully");
 
