@@ -9,7 +9,7 @@ import type { AxiosError } from "axios";
 import type { RootState } from "../store";
 
 /* =====================================================
-   DOMAIN TYPES
+    DOMAIN TYPES
 ===================================================== */
 
 export type IndicatorStatus =
@@ -34,35 +34,22 @@ export interface IEvidence {
   fileName: string;
   fileSize: number;
   mimeType: string;
-  
-  // This MUST include the folder path (e.g., "indicators/evidence/ID/file")
-  publicId: string; 
-  
+  publicId: string;
   version: number;
-  
-  // "raw" is critical for PDFs and Docs in Cloudinary
-  resourceType: "image" | "video" | "raw" | "auto"; 
+  resourceType: "image" | "video" | "raw" | "auto";
   cloudinaryType: "authenticated";
   format: string;
   description?: string;
-
-  status?: "active" | "archived"; 
+  status?: "active" | "archived";
   isArchived: boolean;
-  
-  // Aligned with your backend buildEvidence helper
-  resubmissionAttempt: number; 
-   attempt?: number;
-  
+  resubmissionAttempt: number; // New Standard
+  attempt?: number; // Legacy Support
   isResubmission: boolean;
-  archivedAt?: string; 
-  
-  // This is temporary frontend state, never persisted in DB
-  previewUrl: string; 
-
-  // Use string for frontend dates to avoid Hydration issues
-  createdAt: string; 
+  archivedAt?: string;
+  previewUrl: string;
+  createdAt: string;
   updatedAt?: string;
-  uploadedAt?: string; 
+  uploadedAt?: string;
 }
 
 export interface ICategoryRef {
@@ -114,7 +101,7 @@ export interface UpdateIndicatorPayload {
 }
 
 /* =====================================================
-   HELPERS
+    HELPERS
 ===================================================== */
 
 const handleError = (err: unknown, fallback: string) => {
@@ -133,8 +120,16 @@ const createNotif = (title: string, message: string) => ({
   createdAt: new Date().toISOString(),
 });
 
-const updateList = (list: IIndicator[], updated: IIndicator) =>
-  list.map((i) => (i._id === updated._id ? updated : i));
+/**
+ * FIXED: Returns a NEW array reference to trigger React re-renders
+ */
+const updateList = (list: IIndicator[], updated: IIndicator) => {
+  const index = list.findIndex((i) => i._id === updated._id);
+  if (index === -1) return list;
+  const newList = [...list];
+  newList[index] = updated;
+  return newList;
+};
 
 const normalizeIndicator = (raw: any): IIndicator => ({
   ...raw,
@@ -150,19 +145,16 @@ const normalizeIndicator = (raw: any): IIndicator => ({
   evidence: (raw.evidence || []).map((e: any) => ({
     ...e,
     type: "file",
-    // CRITICAL FIX: Do NOT use e.url here. 
-    // Leave it empty so the UI knows it needs to fetch a signed URL.
-    previewUrl: "", 
+    previewUrl: "",
     isArchived: e.isArchived ?? false,
-    resubmissionAttempt: e.attempt ?? 1,
+    // Support both naming conventions during normalization
+    resubmissionAttempt: e.resubmissionAttempt ?? e.attempt ?? 0,
     createdAt: e.createdAt || e.uploadedAt || new Date().toISOString(),
   })),
 });
 
-
-
 /* =====================================================
-   STATE
+    STATE
 ===================================================== */
 
 interface IndicatorState {
@@ -186,7 +178,7 @@ const initialState: IndicatorState = {
 };
 
 /* =====================================================
-   THUNKS
+    THUNKS
 ===================================================== */
 
 export const fetchAllIndicatorsForAdmin = createAsyncThunk<
@@ -290,27 +282,6 @@ export const rejectIndicator = createAsyncThunk<
   }
 });
 
-export const deleteIndicatorEvidence = createAsyncThunk<
-  IIndicator,
-  { indicatorId: string; publicId: string },
-  { rejectValue: string }
->(
-  "indicators/deleteEvidence",
-  async ({ indicatorId, publicId }, { dispatch, rejectWithValue }) => {
-    try {
-      const { data } = await api.delete(
-        `/indicators/${indicatorId}/evidence/${publicId}`,
-      );
-      dispatch(
-        addNotification(createNotif("Removed", "Evidence file deleted.")),
-      );
-      return normalizeIndicator(data.indicator);
-    } catch (err) {
-      return rejectWithValue(handleError(err, "Delete evidence failed"));
-    }
-  },
-);
-
 export const deleteIndicator = createAsyncThunk<
   string,
   string,
@@ -325,7 +296,29 @@ export const deleteIndicator = createAsyncThunk<
   }
 });
 
-// SUBMIT EVIDENCE (Regular)
+export const deleteIndicatorEvidence = createAsyncThunk<
+  IIndicator,
+  { indicatorId: string; evidenceId: string },
+  { rejectValue: string }
+>(
+  "indicators/deleteEvidence",
+  async ({ indicatorId, evidenceId }, { dispatch, rejectWithValue }) => {
+    try {
+      const { data } = await api.delete(
+        `/indicators/${indicatorId}/evidence/${evidenceId}`,
+      );
+      dispatch(
+        addNotification(
+          createNotif("Removed", "Document deleted successfully."),
+        ),
+      );
+      return normalizeIndicator(data.indicator);
+    } catch (err: any) {
+      return rejectWithValue(handleError(err, "Failed to delete evidence"));
+    }
+  },
+);
+
 export const submitIndicatorEvidence = createAsyncThunk<
   IIndicator,
   { id: string; files: File[]; descriptions: string[] },
@@ -335,9 +328,8 @@ export const submitIndicatorEvidence = createAsyncThunk<
   async ({ id, files, descriptions }, { rejectWithValue }) => {
     try {
       const formData = new FormData();
-      files.forEach((file) => formData.append("files", file));
-      descriptions.forEach((desc) => formData.append("descriptions", desc));
-
+      files.forEach((f) => formData.append("files", f));
+      descriptions.forEach((d) => formData.append("descriptions", d));
       const { data } = await api.post(`/indicators/submit/${id}`, formData);
       return normalizeIndicator(data.indicator);
     } catch (err) {
@@ -346,7 +338,6 @@ export const submitIndicatorEvidence = createAsyncThunk<
   },
 );
 
-// RESUBMIT EVIDENCE (Rejected correction)
 export const resubmitIndicatorEvidence = createAsyncThunk<
   IIndicator,
   { id: string; files: File[]; descriptions: string[]; notes?: string },
@@ -356,10 +347,9 @@ export const resubmitIndicatorEvidence = createAsyncThunk<
   async ({ id, files, descriptions, notes }, { rejectWithValue }) => {
     try {
       const formData = new FormData();
-      files.forEach((file) => formData.append("files", file));
-      descriptions.forEach((desc) => formData.append("descriptions", desc));
+      files.forEach((f) => formData.append("files", f));
+      descriptions.forEach((d) => formData.append("descriptions", d));
       if (notes) formData.append("notes", notes);
-
       const { data } = await api.post(`/indicators/resubmit/${id}`, formData);
       return normalizeIndicator(data.indicator);
     } catch (err) {
@@ -380,8 +370,8 @@ export const adminSubmitIndicatorEvidence = createAsyncThunk<
   ) => {
     try {
       const formData = new FormData();
-      files.forEach((file) => formData.append("files", file));
-      descriptions.forEach((desc) => formData.append("descriptions", desc));
+      files.forEach((f) => formData.append("files", f));
+      descriptions.forEach((d) => formData.append("descriptions", d));
       const { data } = await api.post(
         `/admin/indicators/${indicatorId}/evidence`,
         formData,
@@ -406,52 +396,40 @@ export const fetchEvidencePreviewUrl = createAsyncThunk<
   "indicators/preview",
   async ({ indicatorId, publicId, version }, { getState, rejectWithValue }) => {
     try {
-      // 1. Check Cache
       const cacheKey = `${publicId}@v${version}`;
-      const existing = (getState() as RootState).indicators.previewUrls[cacheKey];
+      const existing = (getState() as RootState).indicators.previewUrls[
+        cacheKey
+      ];
       if (existing) return { cacheKey, previewUrl: existing };
 
-      // 2. Fetch with encoded PublicID
       const { data } = await api.get(
         `/indicators/${indicatorId}/preview-evidence`,
         {
-          params: { 
-            // VERY IMPORTANT: Ensure the path is safely transmitted
-            publicId: encodeURIComponent(publicId) 
-          },
+          params: { publicId: encodeURIComponent(publicId) },
           withCredentials: true,
-        }
+        },
       );
-      
       return { cacheKey, previewUrl: data.url };
     } catch (err) {
       return rejectWithValue(handleError(err, "Preview failed"));
     }
-  }
+  },
 );
 
+/* =====================================================
+    SELECTORS
+===================================================== */
 
-export const selectRejectedEvidence = (state: RootState) => {
-  // Combine both arrays to ensure we catch data regardless of which fetch was called
-  const source = [...state.indicators.userIndicators, ...state.indicators.allIndicators];
-  
-  // Create a Map to deduplicate indicators by ID (in case a user is in both lists)
-  const uniqueIndicators = Array.from(
-    new Map(source.map((item) => [item._id, item])).values()
-  );
-
-  return uniqueIndicators.flatMap((indicator) =>
-    (indicator.evidence || [])
-      .filter((e) => e.isArchived === true) // Strict check for archived flag
-      .map((e) => ({
-        ...e,
-        indicatorId: indicator._id,
-        indicatorTitle: indicator.indicatorTitle,
-        resubmissionAttempt: e.attempt ?? indicator.rejectionCount,
-      }))
-  );
-};
-
+export const selectUserIndicators = (s: RootState) =>
+  s.indicators.userIndicators;
+export const selectAllIndicators = (s: RootState) => s.indicators.allIndicators;
+export const selectSubmittedIndicators = (s: RootState) =>
+  s.indicators.submittedIndicators;
+export const selectIndicatorsLoading = (s: RootState) => s.indicators.loading;
+export const selectIndicatorsError = (s: RootState) => s.indicators.error;
+export const selectPreviewUrls = (s: RootState) => s.indicators.previewUrls;
+export const selectSubmittingEvidence = (s: RootState) =>
+  s.indicators.submittingEvidence;
 
 export const selectAllArchivedEvidence = (state: RootState) => {
   return state.indicators.allIndicators.flatMap((indicator) =>
@@ -461,18 +439,38 @@ export const selectAllArchivedEvidence = (state: RootState) => {
         ...e,
         indicatorTitle: indicator.indicatorTitle,
         indicatorId: indicator._id,
-        // Using updatedAt from the indicator as the rejection timestamp 
-        // if the specific file doesn't have a unique timestamp.
-        rejectedAt: indicator.updatedAt, 
-        rejectionNote: indicator.notes?.[indicator.notes.length - 1]?.text || "No reason provided"
-      }))
+        rejectedAt: indicator.updatedAt,
+        rejectionNote:
+          indicator.notes?.[indicator.notes.length - 1]?.text ||
+          "No reason provided",
+      })),
   );
 };
 
+export const selectRejectedEvidence = (state: RootState) => {
+  const source = [
+    ...state.indicators.userIndicators,
+    ...state.indicators.allIndicators,
+  ];
+  const uniqueIndicators = Array.from(
+    new Map(source.map((item) => [item._id, item])).values(),
+  );
 
+  return uniqueIndicators.flatMap((indicator) =>
+    (indicator.evidence || [])
+      .filter((e) => e.isArchived === true)
+      .map((e) => ({
+        ...e,
+        indicatorId: indicator._id,
+        indicatorTitle: indicator.indicatorTitle,
+        resubmissionAttempt:
+          e.resubmissionAttempt ?? e.attempt ?? indicator.rejectionCount,
+      })),
+  );
+};
 
 /* =====================================================
-   SLICE
+    SLICE
 ===================================================== */
 
 const indicatorSlice = createSlice({
@@ -501,7 +499,7 @@ const indicatorSlice = createSlice({
         s.submittedIndicators = a.payload;
       })
       .addCase(createIndicator.fulfilled, (s, a) => {
-        s.allIndicators.unshift(a.payload);
+        s.allIndicators = [a.payload, ...s.allIndicators];
       })
       .addCase(deleteIndicator.fulfilled, (s, a) => {
         const id = a.payload;
@@ -511,27 +509,10 @@ const indicatorSlice = createSlice({
           (i) => i._id !== id,
         );
       })
-      // inside indicatorSlice extraReducers...
-      .addCase(resubmitIndicatorEvidence.pending, (state) => {
-        state.loading = true;
-        state.error = null;
-      })
-      .addCase(resubmitIndicatorEvidence.fulfilled, (state, action) => {
-  state.loading = false;
-  const updated = action.payload;
-  state.userIndicators = updateList(state.userIndicators, updated);
-  state.allIndicators = updateList(state.allIndicators, updated);
-  state.submittedIndicators = updateList(state.submittedIndicators, updated);
-})
-
-      .addCase(resubmitIndicatorEvidence.rejected, (state, action) => {
-        state.loading = false;
-        state.error = action.payload as string;
-      })
       .addCase(fetchEvidencePreviewUrl.fulfilled, (s, a) => {
         s.previewUrls[a.payload.cacheKey] = a.payload.previewUrl;
       })
-      // MATCHERS
+      // The Universal Matcher now uses the FIXED updateList helper
       .addMatcher(
         (a): a is PayloadAction<IIndicator> =>
           a.type.endsWith("/fulfilled") &&
@@ -550,11 +531,7 @@ const indicatorSlice = createSlice({
         (s, a) => {
           s.loading = true;
           s.error = null;
-          if (
-            a.type.includes("submit") ||
-            a.type.includes("adminSubmit") ||
-            a.type.includes("resubmit")
-          ) {
+          if (a.type.includes("submit") || a.type.includes("resubmit")) {
             s.submittingEvidence = true;
           }
         },
@@ -574,16 +551,4 @@ const indicatorSlice = createSlice({
 
 export const { clearMessages, clearPreviewUrls, removeSpecificPreviewUrl } =
   indicatorSlice.actions;
-
-export const selectUserIndicators = (s: RootState) =>
-  s.indicators.userIndicators;
-export const selectAllIndicators = (s: RootState) => s.indicators.allIndicators;
-export const selectSubmittedIndicators = (s: RootState) =>
-  s.indicators.submittedIndicators;
-export const selectIndicatorsLoading = (s: RootState) => s.indicators.loading;
-export const selectIndicatorsError = (s: RootState) => s.indicators.error;
-export const selectPreviewUrls = (s: RootState) => s.indicators.previewUrls;
-export const selectSubmittingEvidence = (state: RootState) =>
-  state.indicators.submittingEvidence;
-
 export default indicatorSlice.reducer;
