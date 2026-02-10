@@ -104,7 +104,7 @@ export interface UpdateIndicatorPayload {
     HELPERS
 ===================================================== */
 
-const handleError = (err: unknown, fallback: string) => {
+const handleError = (err: unknown, fallback: string): string => {
   if (err && typeof err === "object" && "isAxiosError" in err) {
     const axiosErr = err as AxiosError<{ message?: string }>;
     return axiosErr.response?.data?.message ?? fallback;
@@ -121,9 +121,9 @@ const createNotif = (title: string, message: string) => ({
 });
 
 /**
- * FIXED: Returns a NEW array reference to trigger React re-renders
+ * Returns a NEW array reference to trigger React re-renders
  */
-const updateList = (list: IIndicator[], updated: IIndicator) => {
+const updateList = (list: IIndicator[], updated: IIndicator): IIndicator[] => {
   const index = list.findIndex((i) => i._id === updated._id);
   if (index === -1) return list;
   const newList = [...list];
@@ -145,9 +145,8 @@ const normalizeIndicator = (raw: any): IIndicator => ({
   evidence: (raw.evidence || []).map((e: any) => ({
     ...e,
     type: "file",
-    previewUrl: "",
+    previewUrl: e.previewUrl ?? "",
     isArchived: e.isArchived ?? false,
-    // Support both naming conventions during normalization
     resubmissionAttempt: e.resubmissionAttempt ?? e.attempt ?? 0,
     createdAt: e.createdAt || e.uploadedAt || new Date().toISOString(),
   })),
@@ -248,7 +247,7 @@ export const updateIndicator = createAsyncThunk<
     } catch (err) {
       return rejectWithValue(handleError(err, "Update failed"));
     }
-  },
+  }
 );
 
 export const approveIndicator = createAsyncThunk<
@@ -265,7 +264,7 @@ export const approveIndicator = createAsyncThunk<
     } catch (err) {
       return rejectWithValue(handleError(err, "Approval failed"));
     }
-  },
+  }
 );
 
 export const rejectIndicator = createAsyncThunk<
@@ -305,18 +304,16 @@ export const deleteIndicatorEvidence = createAsyncThunk<
   async ({ indicatorId, evidenceId }, { dispatch, rejectWithValue }) => {
     try {
       const { data } = await api.delete(
-        `/indicators/${indicatorId}/evidence/${evidenceId}`,
+        `/indicators/${indicatorId}/evidence/${evidenceId}`
       );
       dispatch(
-        addNotification(
-          createNotif("Removed", "Document deleted successfully."),
-        ),
+        addNotification(createNotif("Removed", "Document deleted successfully."))
       );
       return normalizeIndicator(data.indicator);
-    } catch (err: any) {
+    } catch (err) {
       return rejectWithValue(handleError(err, "Failed to delete evidence"));
     }
-  },
+  }
 );
 
 export const submitIndicatorEvidence = createAsyncThunk<
@@ -335,7 +332,7 @@ export const submitIndicatorEvidence = createAsyncThunk<
     } catch (err) {
       return rejectWithValue(handleError(err, "Upload failed"));
     }
-  },
+  }
 );
 
 export const resubmitIndicatorEvidence = createAsyncThunk<
@@ -355,7 +352,7 @@ export const resubmitIndicatorEvidence = createAsyncThunk<
     } catch (err) {
       return rejectWithValue(handleError(err, "Resubmission failed"));
     }
-  },
+  }
 );
 
 export const adminSubmitIndicatorEvidence = createAsyncThunk<
@@ -364,28 +361,25 @@ export const adminSubmitIndicatorEvidence = createAsyncThunk<
   { rejectValue: string }
 >(
   "indicators/adminSubmitEvidence",
-  async (
-    { indicatorId, files, descriptions },
-    { dispatch, rejectWithValue },
-  ) => {
+  async ({ indicatorId, files, descriptions }, { dispatch, rejectWithValue }) => {
     try {
       const formData = new FormData();
       files.forEach((f) => formData.append("files", f));
       descriptions.forEach((d) => formData.append("descriptions", d));
       const { data } = await api.post(
-        `/admin/indicators/${indicatorId}/evidence`,
-        formData,
+        `/indicators/${indicatorId}/admin-submit`,
+        formData
       );
       dispatch(
         addNotification(
-          createNotif("Admin Upload", "Evidence bypass completed."),
-        ),
+          createNotif("Admin Upload", "Evidence bypass completed.")
+        )
       );
       return normalizeIndicator(data.indicator);
     } catch (err) {
       return rejectWithValue(handleError(err, "Admin upload failed"));
     }
-  },
+  }
 );
 
 export const fetchEvidencePreviewUrl = createAsyncThunk<
@@ -397,9 +391,7 @@ export const fetchEvidencePreviewUrl = createAsyncThunk<
   async ({ indicatorId, publicId, version }, { getState, rejectWithValue }) => {
     try {
       const cacheKey = `${publicId}@v${version}`;
-      const existing = (getState() as RootState).indicators.previewUrls[
-        cacheKey
-      ];
+      const existing = (getState() as RootState).indicators.previewUrls[cacheKey];
       if (existing) return { cacheKey, previewUrl: existing };
 
       const { data } = await api.get(
@@ -407,29 +399,26 @@ export const fetchEvidencePreviewUrl = createAsyncThunk<
         {
           params: { publicId: encodeURIComponent(publicId) },
           withCredentials: true,
-        },
+        }
       );
       return { cacheKey, previewUrl: data.url };
     } catch (err) {
       return rejectWithValue(handleError(err, "Preview failed"));
     }
-  },
+  }
 );
 
 /* =====================================================
     SELECTORS
 ===================================================== */
 
-export const selectUserIndicators = (s: RootState) =>
-  s.indicators.userIndicators;
+export const selectUserIndicators = (s: RootState) => s.indicators.userIndicators;
 export const selectAllIndicators = (s: RootState) => s.indicators.allIndicators;
-export const selectSubmittedIndicators = (s: RootState) =>
-  s.indicators.submittedIndicators;
+export const selectSubmittedIndicators = (s: RootState) => s.indicators.submittedIndicators;
 export const selectIndicatorsLoading = (s: RootState) => s.indicators.loading;
 export const selectIndicatorsError = (s: RootState) => s.indicators.error;
 export const selectPreviewUrls = (s: RootState) => s.indicators.previewUrls;
-export const selectSubmittingEvidence = (s: RootState) =>
-  s.indicators.submittingEvidence;
+export const selectSubmittingEvidence = (s: RootState) => s.indicators.submittingEvidence;
 
 export const selectAllArchivedEvidence = (state: RootState) => {
   return state.indicators.allIndicators.flatMap((indicator) =>
@@ -443,7 +432,7 @@ export const selectAllArchivedEvidence = (state: RootState) => {
         rejectionNote:
           indicator.notes?.[indicator.notes.length - 1]?.text ||
           "No reason provided",
-      })),
+      }))
   );
 };
 
@@ -453,7 +442,7 @@ export const selectRejectedEvidence = (state: RootState) => {
     ...state.indicators.allIndicators,
   ];
   const uniqueIndicators = Array.from(
-    new Map(source.map((item) => [item._id, item])).values(),
+    new Map(source.map((item) => [item._id, item])).values()
   );
 
   return uniqueIndicators.flatMap((indicator) =>
@@ -465,7 +454,7 @@ export const selectRejectedEvidence = (state: RootState) => {
         indicatorTitle: indicator.indicatorTitle,
         resubmissionAttempt:
           e.resubmissionAttempt ?? e.attempt ?? indicator.rejectionCount,
-      })),
+      }))
   );
 };
 
@@ -505,26 +494,28 @@ const indicatorSlice = createSlice({
         const id = a.payload;
         s.allIndicators = s.allIndicators.filter((i) => i._id !== id);
         s.userIndicators = s.userIndicators.filter((i) => i._id !== id);
-        s.submittedIndicators = s.submittedIndicators.filter(
-          (i) => i._id !== id,
-        );
+        s.submittedIndicators = s.submittedIndicators.filter((i) => i._id !== id);
       })
       .addCase(fetchEvidencePreviewUrl.fulfilled, (s, a) => {
         s.previewUrls[a.payload.cacheKey] = a.payload.previewUrl;
       })
-      // The Universal Matcher now uses the FIXED updateList helper
+      /* --- Matchers --- */
       .addMatcher(
         (a): a is PayloadAction<IIndicator> =>
           a.type.endsWith("/fulfilled") &&
           !a.type.includes("preview") &&
           a.type !== "indicators/delete/fulfilled" &&
+          a.type !== "indicators/all/fulfilled" &&
+          a.type !== "indicators/my/fulfilled" &&
+          a.type !== "indicators/submitted/fulfilled" &&
           typeof a.payload === "object" &&
+          a.payload !== null &&
           "indicatorTitle" in a.payload,
         (s, a) => {
           s.allIndicators = updateList(s.allIndicators, a.payload);
           s.userIndicators = updateList(s.userIndicators, a.payload);
           s.submittedIndicators = updateList(s.submittedIndicators, a.payload);
-        },
+        }
       )
       .addMatcher(
         (a) => a.type.endsWith("/pending"),
@@ -534,7 +525,7 @@ const indicatorSlice = createSlice({
           if (a.type.includes("submit") || a.type.includes("resubmit")) {
             s.submittingEvidence = true;
           }
-        },
+        }
       )
       .addMatcher(
         (a) => a.type.endsWith("/fulfilled") || a.type.endsWith("/rejected"),
@@ -544,7 +535,7 @@ const indicatorSlice = createSlice({
           if (a.type.endsWith("/rejected")) {
             s.error = a.payload || "Unexpected error";
           }
-        },
+        }
       );
   },
 });

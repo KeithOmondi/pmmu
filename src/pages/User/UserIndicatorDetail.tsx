@@ -1,10 +1,3 @@
-/**
- * UPDATED:
- * 1. Fixed "ghost document" by adding optimistic filtering to activeEvidence.
- * 2. Added isDeleting to useMemo dependencies.
- * 3. Maintained 'attempt' fallback for EvidenceRow.
- */
-
 import React, { useMemo, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { useAppDispatch, useAppSelector } from "../../store/hooks";
