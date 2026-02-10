@@ -11,12 +11,10 @@ import {
   Loader2,
   Eye,
   ShieldCheck,
-  CheckCircle2,
   Gavel,
   X,
   FileText,
   Database,
-  AlertCircle,
   Lock,
   Search,
 } from "lucide-react";
@@ -97,7 +95,6 @@ const SuperAdminApproved: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-[#F1F3F6] flex flex-col font-sans">
-      {/* COMMAND HEADER */}
       <header className="bg-[#1a3a32] text-white pt-12 pb-20 px-6 lg:px-12">
         <div className="max-w-7xl mx-auto flex flex-col md:flex-row justify-between items-end gap-8">
           <div className="space-y-4">
@@ -129,7 +126,6 @@ const SuperAdminApproved: React.FC = () => {
         </div>
       </header>
 
-      {/* MAIN CONTENT AREA */}
       <main className="max-w-7xl w-full mx-auto px-6 lg:px-12 -mt-10 pb-20">
         <div className="grid grid-cols-1 gap-4">
           {reviewIndicators.length > 0 ? (
@@ -200,7 +196,7 @@ const SuperAdminApproved: React.FC = () => {
   );
 };
 
-/* --- AUDIT MODAL COMPONENT (Dossier Aesthetic + Fixed Date Logic) --- */
+/* --- AUDIT MODAL COMPONENT --- */
 const AuditModal = ({
   indicator,
   onClose,
@@ -217,14 +213,10 @@ const AuditModal = ({
   const [previewFile, setPreviewFile] = useState<IEvidence | null>(null);
 
   const compliance = useMemo(() => {
-    // 1. Check for basic requirements
     if (!indicator.evidence?.length || !indicator.dueDate) {
       return { status: "none", label: "Registry Data Missing" };
     }
-
     const dueTime = new Date(indicator.dueDate).getTime();
-    
-    // 2. Extract timestamps with fallbacks for different property names
     const submissionTimes = indicator.evidence
       .map((e: any) => {
         const timestamp = e.createdAt || e.uploadedAt;
@@ -233,29 +225,21 @@ const AuditModal = ({
       .filter((t: number) => !isNaN(t))
       .sort((a: number, b: number) => a - b);
 
-    if (submissionTimes.length === 0) {
-      return { status: "none", label: "No Timestamp Found" };
-    }
+    if (submissionTimes.length === 0) return { status: "none", label: "No Timestamp Found" };
 
-    // 3. Calculation
     const diff = dueTime - submissionTimes[0];
     const isEarly = diff >= 0;
-
-    return {
-      status: "calculated",
-      early: isEarly,
-      label: formatDuration(diff),
-    };
+    return { status: "calculated", early: isEarly, label: formatDuration(diff) };
   }, [indicator]);
 
   return (
     <>
+      {/* PRIMARY MODAL LAYER */}
       <div className="fixed inset-0 z-[1100] flex items-center justify-center p-0 sm:p-4">
         <div className="absolute inset-0 bg-[#020817]/95 backdrop-blur-md animate-in fade-in duration-500" onClick={onClose} />
 
         <div className="relative bg-white w-full max-w-5xl h-full sm:h-[85vh] rounded-none sm:rounded-[1.5rem] overflow-hidden shadow-[0_0_80px_rgba(0,0,0,0.4)] flex flex-col md:flex-row transition-all animate-in slide-in-from-bottom-10 duration-500 text-[#1a3a32]">
           
-          {/* DOSSIER SIDEBAR */}
           <aside className="w-full md:w-[340px] bg-[#0f172a] text-slate-300 p-8 flex flex-col border-r border-white/5 shrink-0">
             <div className="mb-10">
               <div className="flex items-center gap-2 text-[#c2a336] mb-4">
@@ -268,7 +252,7 @@ const AuditModal = ({
 
             <div className="space-y-8 flex-1">
               <div className="space-y-2">
-                <label className="text-[9px] font-black text-slate-500 uppercase tracking-widest block">Sumitted By:</label>
+                <label className="text-[9px] font-black text-slate-500 uppercase tracking-widest block">Submitted By:</label>
                 <div className="flex items-center gap-3 bg-white/5 p-3 rounded-xl border border-white/5">
                     <div className="w-8 h-8 rounded-lg bg-[#c2a336] flex items-center justify-center text-[#1a3a32] font-bold text-xs uppercase">
                         {assignedName.charAt(0)}
@@ -295,28 +279,11 @@ const AuditModal = ({
                             </div>
                         )}
                     </div>
-                    <div className="h-[1px] bg-white/5 w-full" />
-                    <div>
-                        <span className="block text-[8px] text-slate-500 uppercase tracking-widest mb-1">Approval Phase</span>
-                        <span className="text-xs font-mono text-white flex items-center gap-2">
-                           <CheckCircle2 size={12} className="text-[#c2a336]" /> Awaiting Final Seal
-                        </span>
-                    </div>
                 </div>
-              </div>
-
-              <div className="mt-auto py-4 border-t border-white/5">
-                 <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2 text-[10px] font-black uppercase text-[#c2a336]">
-                        <div className="w-2 h-2 rounded-full bg-[#c2a336] animate-pulse" />
-                        Live Status: {indicator.status}
-                    </div>
-                 </div>
               </div>
             </div>
           </aside>
 
-          {/* LEDGER CONTENT */}
           <div className="flex-1 flex flex-col bg-[#f8fafc]">
             <header className="px-8 py-6 border-b border-slate-200 flex justify-between items-center bg-white">
               <div className="flex items-center gap-3">
@@ -333,31 +300,24 @@ const AuditModal = ({
               </button>
             </header>
 
-            <div className="flex-1 overflow-y-auto p-8 custom-scrollbar">
+            <div className="flex-1 overflow-y-auto p-8">
               <div className="grid grid-cols-1 gap-3">
-                {indicator.evidence?.length > 0 ? (
-                  indicator.evidence.map((ev: IEvidence, idx: number) => (
-                    <button
-                      key={idx}
-                      onClick={() => setPreviewFile(ev)}
-                      className="group flex items-center gap-4 p-4 bg-white border border-slate-200 rounded-xl hover:border-[#c2a336] hover:shadow-md transition-all text-left"
-                    >
-                      <div className="w-10 h-10 bg-slate-50 rounded flex items-center justify-center text-slate-400 group-hover:bg-[#c2a336]/10 group-hover:text-[#c2a336] transition-colors">
-                        <FileText size={18} />
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <p className="text-sm font-bold text-slate-700 truncate">{ev.fileName}</p>
-                        <p className="text-[9px] text-slate-400 font-mono uppercase mt-0.5">Asset Verified • {new Date(ev.createdAt || Date.now()).toLocaleDateString()}</p>
-                      </div>
-                      <Eye size={14} className="text-slate-300 group-hover:text-[#1a3a32]" />
-                    </button>
-                  ))
-                ) : (
-                  <div className="h-64 flex flex-col items-center justify-center border-2 border-dashed border-slate-200 rounded-3xl bg-slate-50/50">
-                    <AlertCircle size={32} className="text-slate-200 mb-2" />
-                    <span className="text-[10px] font-black text-slate-300 uppercase tracking-[0.2em]">No Documents Available</span>
-                  </div>
-                )}
+                {indicator.evidence?.map((ev, idx) => (
+                  <button
+                    key={idx}
+                    onClick={() => setPreviewFile(ev)}
+                    className="group flex items-center gap-4 p-4 bg-white border border-slate-200 rounded-xl hover:border-[#c2a336] transition-all text-left"
+                  >
+                    <div className="w-10 h-10 bg-slate-50 rounded flex items-center justify-center text-slate-400 group-hover:bg-[#c2a336]/10 group-hover:text-[#c2a336]">
+                      <FileText size={18} />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-bold text-slate-700 truncate">{ev.fileName}</p>
+                      <p className="text-[9px] text-slate-400 font-mono uppercase mt-0.5">Asset Verified</p>
+                    </div>
+                    <Eye size={14} className="text-slate-300" />
+                  </button>
+                ))}
               </div>
             </div>
 
@@ -369,11 +329,10 @@ const AuditModal = ({
               >
                 Return for Revision
               </button>
-              
               <button
                 disabled={processingId === indicator._id || indicator.status === "completed"}
                 onClick={() => onReview(indicator, true)}
-                className="flex items-center gap-3 px-10 py-4 bg-[#1a3a32] text-[#c2a336] text-[10px] font-black uppercase tracking-[0.2em] rounded-xl hover:bg-[#c2a336] hover:text-[#1a3a32] transition-all shadow-xl shadow-slate-200"
+                className="flex items-center gap-3 px-10 py-4 bg-[#1a3a32] text-[#c2a336] text-[10px] font-black uppercase tracking-[0.2em] rounded-xl hover:bg-[#c2a336] hover:text-[#1a3a32] transition-all shadow-xl"
               >
                 {processingId === indicator._id ? <Loader2 size={16} className="animate-spin" /> : <Gavel size={16} />}
                 Seal Registry Entry
@@ -383,12 +342,15 @@ const AuditModal = ({
         </div>
       </div>
 
+      {/* HIGHER LAYER: PREVIEW MODAL */}
       {previewFile && (
-        <EvidencePreviewModal
-          file={previewFile}
-          indicatorId={indicator._id}
-          onClose={() => setPreviewFile(null)}
-        />
+        <div className="fixed inset-0 z-[1200] flex items-center justify-center">
+          <EvidencePreviewModal
+            file={previewFile}
+            indicatorId={indicator._id}
+            onClose={() => setPreviewFile(null)}
+          />
+        </div>
       )}
     </>
   );
