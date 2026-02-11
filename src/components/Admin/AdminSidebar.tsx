@@ -120,7 +120,7 @@ const AdminSidebar = () => {
             <SidebarLink
               to="/admin/submitted"
               icon={<FileText size={18} />}
-              label="Submitted Items"
+              label="Submitted For Review"
               isCollapsed={isCollapsed}
               activeClass={activeClass}
               inactiveClass={inactiveClass}

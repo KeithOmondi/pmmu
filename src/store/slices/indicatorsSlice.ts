@@ -80,6 +80,7 @@ export interface IIndicator {
   calendarEvent?: Record<string, unknown> | null;
   createdAt: string;
   updatedAt: string;
+  description?: string;
 }
 
 export interface CreateIndicatorPayload {
@@ -149,6 +150,8 @@ const normalizeIndicator = (raw: any): IIndicator => ({
     isArchived: e.isArchived ?? false,
     resubmissionAttempt: e.resubmissionAttempt ?? e.attempt ?? 0,
     createdAt: e.createdAt || e.uploadedAt || new Date().toISOString(),
+    // FIXED: Use the description from the evidence item itself (e), not the parent (raw)
+    description: e.description || "", 
   })),
 });
 
