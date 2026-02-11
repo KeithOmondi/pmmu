@@ -1,4 +1,3 @@
-// src/pages/Admin/SuperAdminApproved.tsx
 import React, { useEffect, useMemo, useState } from "react";
 import { useAppDispatch, useAppSelector } from "../../store/hooks";
 import {
@@ -7,6 +6,7 @@ import {
   type IIndicator,
   type IEvidence,
 } from "../../store/slices/indicatorsSlice";
+import { submitIndicatorScore } from "../../store/slices/scoreSlice"; // Import scoring logic
 import {
   Loader2,
   Eye,
@@ -17,6 +17,7 @@ import {
   Database,
   Lock,
   Search,
+  Target,
 } from "lucide-react";
 import toast from "react-hot-toast";
 import {
@@ -71,9 +72,22 @@ const SuperAdminApproved: React.FC = () => {
     return foundUser ? foundUser.name : "System User";
   };
 
-  const handleReview = async (indicator: IIndicator, approve: boolean) => {
+  // Updated to accept the manually selected score from the modal
+  const handleReview = async (indicator: IIndicator, approve: boolean, manualScore?: number) => {
     try {
       setProcessingId(indicator._id);
+
+      if (approve) {
+        // 1. Submit the Official Score selected by the Super Admin
+        await dispatch(
+          submitIndicatorScore({ 
+            indicatorId: indicator._id, 
+            score: manualScore ?? indicator.progress 
+          })
+        ).unwrap();
+      }
+
+      // 2. Finalize status and log ratification time
       await dispatch(
         updateIndicator({
           id: indicator._id,
@@ -84,7 +98,7 @@ const SuperAdminApproved: React.FC = () => {
         })
       ).unwrap();
 
-      toast.success(approve ? "Protocol Ratified & Locked" : "Returned for Further Review");
+      toast.success(approve ? "Protocol Ratified & Score Locked" : "Returned for Further Review");
       setSelectedIndicator(null);
     } catch (err: any) {
       toast.error(err || "Registry Update Failed");
@@ -103,7 +117,7 @@ const SuperAdminApproved: React.FC = () => {
               <span className="text-[10px] font-black uppercase tracking-[0.4em]">Authorization Terminal</span>
             </div>
             <h1 className="text-4xl font-serif font-black tracking-tight">Registry Approval Queue</h1>
-            <p className="text-white/60 text-sm max-w-md">Final executive review and sealing of compliance protocols into the master ledger.</p>
+            <p className="text-white/60 text-sm max-w-md">Final executive review, scoring, and sealing of protocols into the master ledger.</p>
           </div>
           
           <div className="flex items-center gap-6">
@@ -145,7 +159,7 @@ const SuperAdminApproved: React.FC = () => {
                   <div className="min-w-0">
                     <h4 className="font-bold text-[#1a3a32] truncate pr-4">{i.indicatorTitle}</h4>
                     <div className="flex items-center gap-3 mt-1">
-                      <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest">{i.category?.title || "Standard"}</span>
+                      <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Progress Claim: {i.progress}%</span>
                       <span className="w-1 h-1 rounded-full bg-slate-200" />
                       <span className="text-[10px] font-bold text-[#c2a336]">{getAssignedName(i)}</span>
                     </div>
@@ -155,20 +169,9 @@ const SuperAdminApproved: React.FC = () => {
                 <div className="flex items-center gap-3 shrink-0">
                   <button
                     onClick={() => setSelectedIndicator(i)}
-                    className="flex items-center gap-2 px-4 py-2 text-[10px] font-black uppercase tracking-widest text-slate-400 hover:text-[#1a3a32] transition-colors"
+                    className="flex items-center gap-2 px-6 py-3 bg-[#1a3a32] text-[#c2a336] text-[10px] font-black uppercase tracking-widest rounded-xl hover:bg-[#c2a336] hover:text-[#1a3a32] transition-all"
                   >
-                    <Eye size={14} /> Inspect
-                  </button>
-                  <button
-                    disabled={!!processingId || i.status === "completed"}
-                    onClick={() => handleReview(i, true)}
-                    className={`px-6 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${
-                      i.status === "completed" 
-                      ? "bg-slate-100 text-slate-400 border border-slate-200" 
-                      : "bg-[#1a3a32] text-[#c2a336] hover:bg-[#c2a336] hover:text-[#1a3a32] shadow-lg shadow-slate-200"
-                    }`}
-                  >
-                    {processingId === i._id ? <Loader2 size={14} className="animate-spin" /> : i.status === "completed" ? "Sealed" : "Ratify Entry"}
+                    <Eye size={14} /> {i.status === "completed" ? "View Archive" : "Review & Seal"}
                   </button>
                 </div>
               </div>
@@ -206,11 +209,14 @@ const AuditModal = ({
 }: {
   indicator: IIndicator;
   onClose: () => void;
-  onReview: (indicator: IIndicator, approve: boolean) => void;
+  onReview: (indicator: IIndicator, approve: boolean, manualScore?: number) => void;
   processingId: string | null;
   assignedName: string;
 }) => {
   const [previewFile, setPreviewFile] = useState<IEvidence | null>(null);
+  
+  // Local state for the Super Admin to select the final score
+  const [finalScore, setFinalScore] = useState<number>(indicator.progress);
 
   const compliance = useMemo(() => {
     if (!indicator.evidence?.length || !indicator.dueDate) {
@@ -234,52 +240,76 @@ const AuditModal = ({
 
   return (
     <>
-      {/* PRIMARY MODAL LAYER */}
       <div className="fixed inset-0 z-[1100] flex items-center justify-center p-0 sm:p-4">
-        <div className="absolute inset-0 bg-[#020817]/95 backdrop-blur-md animate-in fade-in duration-500" onClick={onClose} />
+        <div className="absolute inset-0 bg-[#020817]/95 backdrop-blur-md" onClick={onClose} />
 
-        <div className="relative bg-white w-full max-w-5xl h-full sm:h-[85vh] rounded-none sm:rounded-[1.5rem] overflow-hidden shadow-[0_0_80px_rgba(0,0,0,0.4)] flex flex-col md:flex-row transition-all animate-in slide-in-from-bottom-10 duration-500 text-[#1a3a32]">
+        <div className="relative bg-white w-full max-w-6xl h-full sm:h-[90vh] rounded-none sm:rounded-[2rem] overflow-hidden shadow-2xl flex flex-col md:flex-row text-[#1a3a32]">
           
-          <aside className="w-full md:w-[340px] bg-[#0f172a] text-slate-300 p-8 flex flex-col border-r border-white/5 shrink-0">
-            <div className="mb-10">
+          <aside className="w-full md:w-[360px] bg-[#0f172a] text-slate-300 p-8 flex flex-col border-r border-white/5 shrink-0">
+            <div className="mb-8">
               <div className="flex items-center gap-2 text-[#c2a336] mb-4">
                 <ShieldCheck size={20} />
-                <span className="text-[10px] font-black uppercase tracking-[0.3em]">Security Dossier</span>
+                <span className="text-[10px] font-black uppercase tracking-[0.3em]">Executive Dossier</span>
               </div>
               <h3 className="text-2xl font-bold text-white leading-tight mb-2">{indicator.indicatorTitle}</h3>
-              <p className="text-[10px] text-slate-500 font-mono tracking-widest uppercase">REF: {indicator._id.slice(-12).toUpperCase()}</p>
+              <p className="text-[10px] text-slate-500 font-mono uppercase tracking-widest">REF: {indicator._id.slice(-12).toUpperCase()}</p>
             </div>
 
             <div className="space-y-8 flex-1">
+              {/* Custodian Info */}
               <div className="space-y-2">
                 <label className="text-[9px] font-black text-slate-500 uppercase tracking-widest block">Submitted By:</label>
                 <div className="flex items-center gap-3 bg-white/5 p-3 rounded-xl border border-white/5">
-                    <div className="w-8 h-8 rounded-lg bg-[#c2a336] flex items-center justify-center text-[#1a3a32] font-bold text-xs uppercase">
+                    <div className="w-8 h-8 rounded-lg bg-[#c2a336] flex items-center justify-center text-[#1a3a32] font-bold text-xs">
                         {assignedName.charAt(0)}
                     </div>
                     <span className="text-sm font-bold text-white">{assignedName}</span>
                 </div>
               </div>
 
-              <div className="space-y-4">
-                <label className="text-[9px] font-black text-slate-500 uppercase tracking-widest block">Analysis</label>
-                <div className="bg-white/5 p-4 rounded-xl border border-white/5 space-y-3">
-                    <div>
-                        <span className="block text-[8px] text-slate-500 uppercase tracking-widest mb-1">Compliance Status</span>
-                        {compliance.status === "none" ? (
-                             <span className="text-xs font-mono text-slate-400 italic">{compliance.label}</span>
-                        ) : (
-                            <div className="flex flex-col">
-                                <span className={`text-sm font-mono font-bold ${compliance.early ? 'text-emerald-400' : 'text-rose-400'}`}>
-                                    {compliance.early ? 'COMPLIANT' : 'OVERDUE'}
-                                </span>
-                                <span className="text-[10px] text-slate-400 mt-1 font-mono italic">
-                                    {compliance.early ? `Submitted ${compliance.label} early` : `Late by ${compliance.label}`}
-                                </span>
-                            </div>
-                        )}
-                    </div>
+              {/* RATIFICATION SCORING SECTION (The Point of Control) */}
+              <div className="bg-[#c2a336]/10 p-6 rounded-2xl border border-[#c2a336]/20 space-y-4">
+                <div className="flex justify-between items-end">
+                   <label className="text-[10px] font-black text-[#c2a336] uppercase tracking-widest">Performance Rating</label>
+                   <span className="text-3xl font-mono font-bold text-white">{finalScore}%</span>
                 </div>
+                
+                <input 
+                  type="range"
+                  min="0"
+                  max="100"
+                  step="1"
+                  value={finalScore}
+                  onChange={(e) => setFinalScore(parseInt(e.target.value))}
+                  disabled={indicator.status === "completed"}
+                  className="w-full h-2 bg-white/10 rounded-lg appearance-none cursor-pointer accent-[#c2a336]"
+                />
+                
+                <div className="flex justify-between text-[9px] font-bold text-slate-500 uppercase">
+                   <span>Custodian Claim: {indicator.progress}%</span>
+                   <span className="text-emerald-400">Target: 100%</span>
+                </div>
+                
+                <p className="text-[10px] text-slate-400 italic leading-relaxed">
+                  As Super Admin, adjust the slider to assign the official performance score based on the evidence registry.
+                </p>
+              </div>
+
+              {/* Analysis */}
+              <div className="bg-white/5 p-4 rounded-xl border border-white/5 space-y-3">
+                  <span className="block text-[8px] text-slate-500 uppercase tracking-widest mb-1">Time Compliance</span>
+                  {compliance.status === "none" ? (
+                       <span className="text-xs font-mono text-slate-400 italic">{compliance.label}</span>
+                  ) : (
+                      <div className="flex flex-col">
+                          <span className={`text-sm font-mono font-bold ${compliance.early ? 'text-emerald-400' : 'text-rose-400'}`}>
+                              {compliance.early ? 'IN-TIME' : 'LATE'}
+                          </span>
+                          <span className="text-[10px] text-slate-400 mt-1 font-mono italic">
+                              {compliance.label} {compliance.early ? 'before deadline' : 'past deadline'}
+                          </span>
+                      </div>
+                  )}
               </div>
             </div>
           </aside>
@@ -291,8 +321,8 @@ const AuditModal = ({
                     <Database size={18} className="text-slate-400" />
                 </div>
                 <div>
-                    <h4 className="text-xs font-black text-[#1a3a32] uppercase tracking-widest">Evidence Ledger</h4>
-                    <p className="text-[9px] text-slate-400 font-bold uppercase tracking-tight">Support Documentation Registry</p>
+                    <h4 className="text-xs font-black text-[#1a3a32] uppercase tracking-widest">Evidence Registry</h4>
+                    <p className="text-[9px] text-slate-400 font-bold uppercase tracking-tight">Reviewing {indicator.evidence?.length || 0} Assets</p>
                 </div>
               </div>
               <button onClick={onClose} className="p-2 hover:bg-slate-100 rounded-full transition-colors">
@@ -301,48 +331,53 @@ const AuditModal = ({
             </header>
 
             <div className="flex-1 overflow-y-auto p-8">
-              <div className="grid grid-cols-1 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 {indicator.evidence?.map((ev, idx) => (
                   <button
                     key={idx}
                     onClick={() => setPreviewFile(ev)}
-                    className="group flex items-center gap-4 p-4 bg-white border border-slate-200 rounded-xl hover:border-[#c2a336] transition-all text-left"
+                    className="group flex items-center gap-4 p-5 bg-white border border-slate-200 rounded-2xl hover:border-[#c2a336] transition-all text-left shadow-sm"
                   >
-                    <div className="w-10 h-10 bg-slate-50 rounded flex items-center justify-center text-slate-400 group-hover:bg-[#c2a336]/10 group-hover:text-[#c2a336]">
-                      <FileText size={18} />
+                    <div className="w-12 h-12 bg-slate-50 rounded-xl flex items-center justify-center text-slate-400 group-hover:bg-[#c2a336]/10 group-hover:text-[#c2a336] transition-colors">
+                      <FileText size={20} />
                     </div>
                     <div className="flex-1 min-w-0">
                       <p className="text-sm font-bold text-slate-700 truncate">{ev.fileName}</p>
-                      <p className="text-[9px] text-slate-400 font-mono uppercase mt-0.5">Asset Verified</p>
+                      <p className="text-[9px] text-slate-400 font-mono uppercase mt-0.5">Click to Inspect</p>
                     </div>
-                    <Eye size={14} className="text-slate-300" />
                   </button>
                 ))}
               </div>
             </div>
 
-            <footer className="p-8 bg-white border-t border-slate-200 flex items-center justify-end gap-4">
-              <button
-                disabled={processingId === indicator._id || indicator.status === "completed"}
-                onClick={() => onReview(indicator, false)}
-                className="px-6 py-3 text-[10px] font-black uppercase tracking-[0.2em] text-rose-500 hover:bg-rose-50 rounded-xl transition-all"
-              >
-                Return for Revision
-              </button>
-              <button
-                disabled={processingId === indicator._id || indicator.status === "completed"}
-                onClick={() => onReview(indicator, true)}
-                className="flex items-center gap-3 px-10 py-4 bg-[#1a3a32] text-[#c2a336] text-[10px] font-black uppercase tracking-[0.2em] rounded-xl hover:bg-[#c2a336] hover:text-[#1a3a32] transition-all shadow-xl"
-              >
-                {processingId === indicator._id ? <Loader2 size={16} className="animate-spin" /> : <Gavel size={16} />}
-                Seal Registry Entry
-              </button>
+            <footer className="p-8 bg-white border-t border-slate-200 flex items-center justify-between gap-4">
+              <div className="hidden lg:flex items-center gap-3 text-slate-400">
+                <Target size={16} />
+                <span className="text-[10px] font-bold uppercase tracking-widest">Final Ratification at {finalScore}%</span>
+              </div>
+              
+              <div className="flex gap-4">
+                <button
+                  disabled={!!processingId || indicator.status === "completed"}
+                  onClick={() => onReview(indicator, false)}
+                  className="px-6 py-4 text-[10px] font-black uppercase tracking-widest text-rose-500 hover:bg-rose-50 rounded-xl transition-all"
+                >
+                  Return for Revision
+                </button>
+                <button
+                  disabled={!!processingId || indicator.status === "completed"}
+                  onClick={() => onReview(indicator, true, finalScore)}
+                  className="flex items-center gap-3 px-12 py-4 bg-[#1a3a32] text-[#c2a336] text-[10px] font-black uppercase tracking-[0.2em] rounded-xl hover:bg-[#c2a336] hover:text-[#1a3a32] transition-all shadow-xl shadow-[#1a3a32]/10"
+                >
+                  {processingId === indicator._id ? <Loader2 size={16} className="animate-spin" /> : <Gavel size={16} />}
+                  Seal Entry at {finalScore}%
+                </button>
+              </div>
             </footer>
           </div>
         </div>
       </div>
 
-      {/* HIGHER LAYER: PREVIEW MODAL */}
       {previewFile && (
         <div className="fixed inset-0 z-[1200] flex items-center justify-center">
           <EvidencePreviewModal
