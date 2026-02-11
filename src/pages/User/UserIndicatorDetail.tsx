@@ -8,6 +8,7 @@ import {
   submitIndicatorEvidence,
   resubmitIndicatorEvidence,
   deleteIndicatorEvidence,
+  updateEvidenceNote,
   type IEvidence,
 } from "../../store/slices/indicatorsSlice";
 import { getSocket } from "../../utils/socket";
@@ -24,6 +25,8 @@ import {
   ChevronRight,
   RefreshCcw,
   Send,
+  Pencil,
+  Check,
 } from "lucide-react";
 import toast from "react-hot-toast";
 import JSZip from "jszip";
@@ -54,23 +57,25 @@ const UserIndicatorDetail: React.FC = () => {
     [indicators, id],
   );
 
+  /* --- LOCAL STATE --- */
   const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
   const [descriptions, setDescriptions] = useState<string[]>([]);
   const [previewFile, setPreviewFile] = useState<IEvidence | null>(null);
   const [isDeleting, setIsDeleting] = useState<string | null>(null);
+  
+  // States for Inline Editing
+  const [editingFileId, setEditingFileId] = useState<string | null>(null);
+  const [editValue, setEditValue] = useState("");
+  const [isUpdating, setIsUpdating] = useState(false);
 
-  /* --- DATA FILTERING (OPTIMISTIC UPDATE) --- */
+  /* --- DATA FILTERING --- */
   const activeEvidence = useMemo(() => {
     if (!indicator) return [];
-    return (
-      indicator.evidence
-        .filter((e) => !e.isArchived)
-        // Optimistically hide the file that is currently being deleted
-        .filter((e) => e._id !== isDeleting)
-    );
+    return indicator.evidence
+      .filter((e) => !e.isArchived)
+      .filter((e) => e._id !== isDeleting);
   }, [indicator, isDeleting]);
 
-  /* --- LOGIC LOCKS --- */
   const isRejected = indicator?.status === "rejected";
   const canModify =
     indicator?.status === "pending" ||
@@ -78,6 +83,27 @@ const UserIndicatorDetail: React.FC = () => {
     indicator?.status === "submitted";
 
   /* --- HANDLERS --- */
+
+  const handleUpdateDescription = async (evidenceId: string) => {
+    if (!indicator || !editValue.trim()) return;
+    setIsUpdating(true);
+    try {
+      await dispatch(
+        updateEvidenceNote({
+          indicatorId: indicator._id,
+          evidenceId,
+          description: editValue,
+        })
+      ).unwrap();
+      toast.success("Description updated");
+      setEditingFileId(null);
+    } catch (err: any) {
+      toast.error(err || "Update failed");
+    } finally {
+      setIsUpdating(false);
+    }
+  };
+
   const handleFileChange = async (files: FileList | null) => {
     if (!files) return;
     const toastId = toast.loading("Processing files...");
@@ -93,9 +119,7 @@ const UserIndicatorDetail: React.FC = () => {
               promises.push(
                 entry.async("blob").then((b) => {
                   extractedList.push(
-                    new File([b], entry.name, {
-                      type: "application/octet-stream",
-                    }),
+                    new File([b], entry.name, { type: "application/octet-stream" })
                   );
                 }),
               );
@@ -122,23 +146,17 @@ const UserIndicatorDetail: React.FC = () => {
 
   const handleAction = async () => {
     if (!indicator) return;
-    if (!selectedFiles.length)
-      return toast.error("Please select at least one file");
-    if (descriptions.some((d) => !d.trim()))
-      return toast.error("All files need a description.");
+    if (!selectedFiles.length) return toast.error("Please select at least one file");
+    if (descriptions.some((d) => !d.trim())) return toast.error("All files need a description.");
 
-    const toastId = toast.loading(
-      isRejected ? "Resubmitting revision..." : "Uploading...",
-    );
+    const toastId = toast.loading(isRejected ? "Resubmitting revision..." : "Uploading...");
 
     try {
       const payload = {
         id: indicator._id,
         files: selectedFiles,
         descriptions,
-        notes: isRejected
-          ? `Revised submission (Attempt ${indicator.rejectionCount + 1})`
-          : undefined,
+        notes: isRejected ? `Revised submission (Attempt ${indicator.rejectionCount + 1})` : undefined,
       };
 
       if (isRejected) {
@@ -166,17 +184,11 @@ const UserIndicatorDetail: React.FC = () => {
 
   const handleDeleteEvidence = async (evidenceId: string) => {
     if (!indicator) return;
-    if (!window.confirm("Are you sure you want to delete this document?"))
-      return;
+    if (!window.confirm("Are you sure you want to delete this document?")) return;
 
-    setIsDeleting(evidenceId); // Triggers useMemo to hide the row immediately
+    setIsDeleting(evidenceId);
     try {
-      await dispatch(
-        deleteIndicatorEvidence({
-          indicatorId: indicator._id,
-          evidenceId,
-        }),
-      ).unwrap();
+      await dispatch(deleteIndicatorEvidence({ indicatorId: indicator._id, evidenceId })).unwrap();
       toast.success("File removed");
     } catch (err: any) {
       toast.error(err || "Failed to delete file");
@@ -185,8 +197,7 @@ const UserIndicatorDetail: React.FC = () => {
     }
   };
 
-  if (!indicator)
-    return loading ? <LoadingScreen /> : <NotFound navigate={navigate} />;
+  if (!indicator) return loading ? <LoadingScreen /> : <NotFound navigate={navigate} />;
 
   return (
     <div className="min-h-screen bg-[#F8F9FA] pb-20">
@@ -240,16 +251,8 @@ const UserIndicatorDetail: React.FC = () => {
             )}
 
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-              <Stat
-                label="Due Date"
-                value={new Date(indicator.dueDate).toLocaleDateString()}
-              />
-              <Stat
-                label="Time Left"
-                value={formatDuration(
-                  new Date(indicator.dueDate).getTime() - Date.now(),
-                )}
-              />
+              <Stat label="Due Date" value={new Date(indicator.dueDate).toLocaleDateString()} />
+              <Stat label="Time Left" value={formatDuration(new Date(indicator.dueDate).getTime() - Date.now())} />
               <Stat label="Unit" value={indicator.unitOfMeasure} />
               <Stat label="Status" value={indicator.status} />
             </div>
@@ -265,9 +268,20 @@ const UserIndicatorDetail: React.FC = () => {
                       key={file._id}
                       file={file}
                       onPreview={() => setPreviewFile(file)}
-                      canDelete={canModify}
+                      canModify={canModify}
                       isDeleting={isDeleting === file._id}
                       onDelete={() => handleDeleteEvidence(file._id)}
+                      // Inline Edit Props
+                      isEditing={editingFileId === file._id}
+                      editValue={editValue}
+                      isUpdating={isUpdating}
+                      onStartEdit={() => {
+                        setEditingFileId(file._id);
+                        setEditValue(file.description || "");
+                      }}
+                      onCancelEdit={() => setEditingFileId(null)}
+                      onSaveEdit={() => handleUpdateDescription(file._id)}
+                      onEditChange={(val: string) => setEditValue(val)}
                     />
                   ))
                 ) : (
@@ -283,48 +297,22 @@ const UserIndicatorDetail: React.FC = () => {
             {canModify ? (
               <div className="bg-white rounded-[2.5rem] p-8 border border-gray-100 shadow-xl sticky top-12">
                 <h3 className="text-xs font-black uppercase tracking-widest mb-8 flex items-center gap-2 text-[#1E3A2B]">
-                  {isRejected ? (
-                    <RefreshCcw size={16} className="text-orange-500" />
-                  ) : (
-                    <Plus size={16} />
-                  )}
+                  {isRejected ? <RefreshCcw size={16} className="text-orange-500" /> : <Plus size={16} />}
                   {isRejected ? "Resubmit Revised" : "Add Evidence"}
                 </h3>
 
                 <label className="group flex flex-col items-center justify-center border-2 border-dashed border-gray-200 rounded-3xl p-10 cursor-pointer hover:border-[#C69214] transition-all">
-                  <Upload
-                    size={24}
-                    className="mb-4 text-gray-400 group-hover:text-[#C69214]"
-                  />
-                  <span className="text-[10px] font-black uppercase text-gray-400">
-                    Select Files
-                  </span>
-                  <input
-                    type="file"
-                    multiple
-                    hidden
-                    onChange={(e) => handleFileChange(e.target.files)}
-                  />
+                  <Upload size={24} className="mb-4 text-gray-400 group-hover:text-[#C69214]" />
+                  <span className="text-[10px] font-black uppercase text-gray-400">Select Files</span>
+                  <input type="file" multiple hidden onChange={(e) => handleFileChange(e.target.files)} />
                 </label>
 
                 <div className="mt-8 space-y-4 max-h-[300px] overflow-y-auto pr-2 custom-scrollbar">
                   {selectedFiles.map((file, i) => (
-                    <div
-                      key={i}
-                      className="bg-gray-50 rounded-2xl p-4 border border-gray-100"
-                    >
+                    <div key={i} className="bg-gray-50 rounded-2xl p-4 border border-gray-100">
                       <div className="flex justify-between items-center mb-2">
-                        <span className="text-[11px] font-bold text-[#1E3A2B] truncate">
-                          {file.name}
-                        </span>
-                        <button
-                          onClick={() =>
-                            setSelectedFiles((f) =>
-                              f.filter((_, idx) => idx !== i),
-                            )
-                          }
-                          className="text-gray-300 hover:text-rose-500"
-                        >
+                        <span className="text-[11px] font-bold text-[#1E3A2B] truncate">{file.name}</span>
+                        <button onClick={() => setSelectedFiles(f => f.filter((_, idx) => idx !== i))} className="text-gray-300 hover:text-rose-500">
                           <X size={14} />
                         </button>
                       </div>
@@ -347,27 +335,17 @@ const UserIndicatorDetail: React.FC = () => {
                   onClick={handleAction}
                   disabled={submitting}
                   className={`w-full mt-8 py-5 rounded-2xl text-white font-black text-[10px] uppercase tracking-widest transition-all flex items-center justify-center gap-2 ${
-                    selectedFiles.length === 0 || submitting
-                      ? "bg-gray-300"
-                      : isRejected
-                        ? "bg-orange-600 hover:bg-orange-700"
-                        : "bg-[#1E3A2B] hover:brightness-110"
+                    selectedFiles.length === 0 || submitting ? "bg-gray-300" : isRejected ? "bg-orange-600 hover:bg-orange-700" : "bg-[#1E3A2B] hover:brightness-110"
                   }`}
                 >
-                  {submitting ? (
-                    <div className="w-4 h-4 border-2 border-white border-t-transparent animate-spin rounded-full" />
-                  ) : (
-                    <Send size={14} />
-                  )}
+                  {submitting ? <div className="w-4 h-4 border-2 border-white border-t-transparent animate-spin rounded-full" /> : <Send size={14} />}
                   {submitting ? "Processing..." : "Submit to Auditor"}
                 </button>
               </div>
             ) : (
               <div className="bg-gray-50 border-2 border-dashed border-gray-200 rounded-[3rem] p-12 text-center">
                 <Lock size={40} className="mx-auto text-gray-300 mb-4" />
-                <h4 className="text-[10px] font-black uppercase text-gray-400">
-                  Locked
-                </h4>
+                <h4 className="text-[10px] font-black uppercase text-gray-400">Locked</h4>
               </div>
             )}
           </aside>
@@ -388,12 +366,8 @@ const UserIndicatorDetail: React.FC = () => {
 /* --- SUB-COMPONENTS --- */
 const Stat = ({ label, value }: { label: string; value: string }) => (
   <div className="bg-white p-6 rounded-3xl border border-gray-100 shadow-sm">
-    <p className="text-[9px] font-black text-gray-400 uppercase tracking-widest mb-1">
-      {label}
-    </p>
-    <p className="text-sm font-bold text-[#1E3A2B] truncate uppercase">
-      {value}
-    </p>
+    <p className="text-[9px] font-black text-gray-400 uppercase tracking-widest mb-1">{label}</p>
+    <p className="text-sm font-bold text-[#1E3A2B] truncate uppercase">{value}</p>
   </div>
 );
 
@@ -402,14 +376,21 @@ const EvidenceRow = ({
   onPreview,
   onDelete,
   isDeleting,
-  canDelete,
+  canModify,
+  isEditing,
+  editValue,
+  isUpdating,
+  onStartEdit,
+  onCancelEdit,
+  onSaveEdit,
+  onEditChange,
 }: any) => {
-  const attemptValue = file.resubmissionAttempt ?? file.attempt ?? 0;
+  const attemptValue = file.resubmissionAttempt ?? 0;
   const isResub = attemptValue > 0;
 
   return (
     <div className="group flex justify-between items-center p-6 border-b border-gray-50 last:border-0 hover:bg-gray-50 transition-colors">
-      <div className="flex items-center gap-4">
+      <div className="flex items-center gap-4 flex-1">
         <div className="relative">
           <div className="w-12 h-12 bg-white rounded-2xl border border-gray-100 flex items-center justify-center text-gray-400 group-hover:bg-[#1E3A2B] group-hover:text-white transition-all">
             <FileText size={20} />
@@ -420,7 +401,7 @@ const EvidenceRow = ({
             </div>
           )}
         </div>
-        <div>
+        <div className="flex-1">
           <div className="flex items-center gap-2">
             <p className="text-sm font-bold text-[#1E3A2B]">{file.fileName}</p>
             {isResub && (
@@ -429,17 +410,46 @@ const EvidenceRow = ({
               </span>
             )}
           </div>
-          <p className="text-[10px] text-gray-400 italic truncate max-w-[200px] md:max-w-xs">
-            {file.description || "No description"}
-          </p>
+          
+          {isEditing ? (
+            <div className="mt-2 flex items-center gap-2 max-w-md">
+              <input
+                autoFocus
+                className="flex-1 text-[11px] bg-white border border-[#C69214] rounded-lg px-2 py-1 outline-none"
+                value={editValue}
+                onChange={(e) => onEditChange(e.target.value)}
+                onKeyDown={(e) => e.key === "Enter" && onSaveEdit()}
+              />
+              <button onClick={onSaveEdit} disabled={isUpdating} className="text-green-600 hover:bg-green-50 p-1 rounded">
+                {isUpdating ? <div className="w-3 h-3 border-2 border-current border-t-transparent animate-spin rounded-full" /> : <Check size={14} />}
+              </button>
+              <button onClick={onCancelEdit} className="text-gray-400 hover:bg-gray-100 p-1 rounded">
+                <X size={14} />
+              </button>
+            </div>
+          ) : (
+            <div className="flex items-center gap-2">
+              <p className="text-[10px] text-gray-400 italic truncate max-w-[200px] md:max-w-xs">
+                {file.description || "No description"}
+              </p>
+              {canModify && (
+                <button 
+                  onClick={onStartEdit}
+                  className="opacity-0 group-hover:opacity-100 text-gray-300 hover:text-[#C69214] transition-all p-1"
+                >
+                  <Pencil size={12} />
+                </button>
+              )}
+            </div>
+          )}
         </div>
       </div>
       <div className="flex items-center gap-3">
-        {canDelete && (
+        {canModify && !isEditing && (
           <button
             onClick={onDelete}
             disabled={isDeleting}
-            className="p-3 text-rose-300 hover:text-rose-600 hover:bg-rose-50 rounded-xl transition-all"
+            className="p-3 text-rose-200 hover:text-rose-600 hover:bg-rose-50 rounded-xl transition-all"
           >
             {isDeleting ? (
               <div className="w-4 h-4 border-2 border-current border-t-transparent animate-spin rounded-full" />
@@ -462,17 +472,13 @@ const EvidenceRow = ({
 const LoadingScreen = () => (
   <div className="h-screen flex flex-col items-center justify-center bg-white">
     <div className="w-12 h-12 border-4 border-[#C69214] border-t-transparent animate-spin rounded-full mb-4" />
-    <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest">
-      Processing...
-    </p>
+    <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Processing...</p>
   </div>
 );
 
 const NotFound = ({ navigate }: any) => (
   <div className="h-screen flex flex-col items-center justify-center bg-[#F8F9FA] px-6 text-center">
-    <h2 className="text-2xl font-serif font-bold text-[#1E3A2B] mb-6">
-      Indicator Not Found
-    </h2>
+    <h2 className="text-2xl font-serif font-bold text-[#1E3A2B] mb-6">Indicator Not Found</h2>
     <button
       onClick={() => navigate(-1)}
       className="px-10 py-4 bg-[#1E3A2B] text-white text-[10px] font-black uppercase rounded-2xl"

@@ -42,6 +42,7 @@ import UserProfile from "./pages/User/UserProfile";
 import UserReport from "./pages/User/UserReports";
 import UserRejectionsPage from "./pages/User/UserRejections";
 import AdminRejectionsPage from "./pages/Admin/AdminRejections";
+import AdminApprovedIndicatorsPage from "./pages/Admin/AdminApprovedIndicators";
 
 const App = () => {
   const dispatch = useAppDispatch();
@@ -126,6 +127,7 @@ const App = () => {
               path="submitted/:id"
               element={<SubmittedIndicatorDetail />}
             />
+            <Route path="approved" element={<AdminApprovedIndicatorsPage />} />
             <Route path="reports" element={<AdminReports />} />
             <Route path="settings" element={<AdminSettings />} />
             <Route path="uploads" element={<AdminUploadsPage />} />

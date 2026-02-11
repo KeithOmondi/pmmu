@@ -126,6 +126,15 @@ const AdminSidebar = () => {
               inactiveClass={inactiveClass}
               linkClass={linkClass}
             />
+            <SidebarLink
+              to="/admin/approved"
+              icon={<FileText size={18} />}
+              label="Approved Items"
+              isCollapsed={isCollapsed}
+              activeClass={activeClass}
+              inactiveClass={inactiveClass}
+              linkClass={linkClass}
+            />
 
             <SidebarLink
               to="/admin/rejections"

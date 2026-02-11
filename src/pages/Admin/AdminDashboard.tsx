@@ -133,7 +133,7 @@ const AdminDashboard = () => {
               </span>
             </div>
             <h1 className="text-4xl font-serif font-bold tracking-tight">
-              Principal <span className="text-[#C69214]">Registry</span>
+              OFFICE OF THE REGISTRAR<span className="text-[#C69214]"> HIGH COURT</span>
             </h1>
           </div>
 

@@ -19,7 +19,8 @@ import {
   CheckCircle2,
   FileWarning,
   CalendarDays,
-  History
+  History,
+  Filter
 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 
@@ -41,14 +42,18 @@ const SubmittedIndicators: React.FC = () => {
   }, [dispatch]);
 
   // --- FILTER CORE LOGIC ---
-  const indicatorsWithEvidence = useMemo(() => {
-    return indicators.filter((i) => i.evidence && i.evidence.length > 0);
+  // 1. Only show items that have evidence AND are NOT approved
+  const pendingAuditIndicators = useMemo(() => {
+    return indicators.filter(
+      (i) => i.evidence && i.evidence.length > 0 && i.status !== "approved"
+    );
   }, [indicators]);
 
+  // 2. Map users based only on the "pending audit" list
   const userSubmissionStats = useMemo(() => {
     return users
       .map((user) => {
-        const userItems = indicatorsWithEvidence.filter(
+        const userItems = pendingAuditIndicators.filter(
           (i) =>
             i.assignedTo === user._id ||
             (i.assignedToType === "group" &&
@@ -62,10 +67,11 @@ const SubmittedIndicators: React.FC = () => {
       })
       .filter((u) => u.total > 0)
       .sort((a, b) => a.name.localeCompare(b.name)); 
-  }, [users, indicatorsWithEvidence]);
+  }, [users, pendingAuditIndicators]);
 
+  // 3. Apply search and user selection filters
   const filteredSubmissions = useMemo(() => {
-    const filtered = indicatorsWithEvidence.filter((i) => {
+    const filtered = pendingAuditIndicators.filter((i) => {
       const matchesUser =
         selectedUserId === "all" ||
         i.assignedTo === selectedUserId ||
@@ -79,11 +85,11 @@ const SubmittedIndicators: React.FC = () => {
       return matchesUser && matchesSearch;
     });
 
-    // Sort by most recently updated first (Latest Activity)
+    // Sort by most recently updated first
     return [...filtered].sort((a, b) => 
       new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()
     );
-  }, [indicatorsWithEvidence, selectedUserId, searchTerm]);
+  }, [pendingAuditIndicators, selectedUserId, searchTerm]);
 
   if (indicatorsLoading || usersLoading) return <LoadingState />;
 
@@ -98,7 +104,7 @@ const SubmittedIndicators: React.FC = () => {
             </h2>
           </div>
           <p className="text-white/60 text-[11px] font-medium">
-            Timeline of evidence activity
+            Review pending submissions
           </p>
         </div>
 
@@ -107,14 +113,15 @@ const SubmittedIndicators: React.FC = () => {
             onClick={() => setSelectedUserId("all")}
             className={`w-full flex justify-between items-center p-4 rounded-2xl transition-all ${selectedUserId === "all" ? "bg-gray-100 text-[#1a3a32]" : "hover:bg-gray-50 text-gray-500"}`}
           >
-            <span className="text-xs font-bold uppercase tracking-wider">All Activity</span>
+            <span className="text-xs font-bold uppercase tracking-wider">All Pending</span>
             <span className="text-[10px] font-black bg-white px-2 py-1 rounded-lg border">
-              {indicatorsWithEvidence.length}
+              {pendingAuditIndicators.length}
             </span>
           </button>
 
-          <div className="pt-6 pb-2 px-4">
-            <span className="text-[9px] font-black text-gray-400 uppercase tracking-[0.2em]">Officials</span>
+          <div className="pt-6 pb-2 px-4 flex items-center gap-2">
+            <Filter size={10} className="text-gray-400" />
+            <span className="text-[9px] font-black text-gray-400 uppercase tracking-[0.2em]">Filter by Official</span>
           </div>
 
           {userSubmissionStats.map((user) => (
@@ -132,7 +139,7 @@ const SubmittedIndicators: React.FC = () => {
                     {user.name}
                   </p>
                   <p className="text-[9px] text-gray-400 font-medium uppercase">
-                    {user.total} Records
+                    {user.total} Pending
                   </p>
                 </div>
               </div>
@@ -145,10 +152,10 @@ const SubmittedIndicators: React.FC = () => {
         <header className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6 mb-10">
           <div>
             <h1 className="text-2xl font-serif font-bold text-[#1a3a32]">
-              {selectedUserId === "all" ? "Evidence Timeline" : `Activity: ${users.find((u) => u._id === selectedUserId)?.name}`}
+              {selectedUserId === "all" ? "Audit Queue" : `Review: ${users.find((u) => u._id === selectedUserId)?.name}`}
             </h1>
             <p className="text-[10px] font-black text-[#c2a336] uppercase tracking-widest mt-1">
-              Tracking submission & resubmission cycles
+              Showing submissions awaiting approval
             </p>
           </div>
 
@@ -156,7 +163,7 @@ const SubmittedIndicators: React.FC = () => {
             <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-300" size={16} />
             <input
               type="text"
-              placeholder="Search by title..."
+              placeholder="Search indicators..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               className="w-full bg-white border border-gray-100 rounded-2xl py-3 pl-12 pr-4 text-xs focus:ring-2 focus:ring-[#c2a336] outline-none transition-all shadow-sm"
@@ -166,8 +173,8 @@ const SubmittedIndicators: React.FC = () => {
 
         {!filteredSubmissions.length ? (
           <div className="py-24 text-center bg-white rounded-[3rem] border border-dashed border-gray-200">
-            <FileWarning size={48} className="mx-auto text-gray-100 mb-4" />
-            <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest">No active evidence threads</p>
+            <CheckCircle2 size={48} className="mx-auto text-emerald-100 mb-4" />
+            <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Inbox Zero: No pending reviews</p>
           </div>
         ) : (
           <div className="grid gap-4">
@@ -181,16 +188,12 @@ const SubmittedIndicators: React.FC = () => {
   );
 };
 
-/* --- UPDATED SUB-COMPONENT WITH DATE TRACKING --- */
+/* --- SUB-COMPONENT --- */
 
 const SubmissionRow = ({ indicator, navigate }: { indicator: any; navigate: any; }) => {
   const isResubmitted = indicator.rejectionCount > 0;
   const lastActivityDate = new Date(indicator.updatedAt).toLocaleString('en-US', {
-    month: 'short',
-    day: 'numeric',
-    year: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit'
+    month: 'short', day: 'numeric', year: 'numeric', hour: '2-digit', minute: '2-digit'
   });
 
   return (
@@ -199,8 +202,8 @@ const SubmissionRow = ({ indicator, navigate }: { indicator: any; navigate: any;
       className="group bg-white p-6 rounded-[2rem] border border-gray-50 hover:border-[#c2a336]/30 hover:shadow-xl hover:shadow-[#1a3a32]/5 transition-all cursor-pointer flex flex-col md:flex-row md:items-center justify-between gap-6"
     >
       <div className="flex items-start gap-5 flex-1">
-        <div className={`w-14 h-14 rounded-2xl flex items-center justify-center shrink-0 transition-colors ${indicator.status === "submitted" ? "bg-amber-50 text-amber-600" : "bg-emerald-50 text-emerald-600"}`}>
-          {indicator.status === "submitted" ? <Clock size={24} /> : <CheckCircle2 size={24} />}
+        <div className={`w-14 h-14 rounded-2xl flex items-center justify-center shrink-0 transition-colors ${indicator.status === "submitted" ? "bg-amber-50 text-amber-600" : "bg-rose-50 text-rose-600"}`}>
+          {indicator.status === "submitted" ? <Clock size={24} /> : <FileWarning size={24} />}
         </div>
         
         <div className="overflow-hidden space-y-2">
@@ -222,7 +225,7 @@ const SubmissionRow = ({ indicator, navigate }: { indicator: any; navigate: any;
             <div className="w-1 h-1 rounded-full bg-gray-200 hidden sm:block" />
             <span className="text-[10px] font-medium text-slate-500 flex items-center gap-1.5">
                <CalendarDays size={12} className="text-slate-400" /> 
-               <span className="font-black text-[9px] uppercase text-slate-400">Last Activity:</span> 
+               <span className="font-black text-[9px] uppercase text-slate-400">Activity:</span> 
                {lastActivityDate}
             </span>
           </div>
@@ -233,7 +236,7 @@ const SubmissionRow = ({ indicator, navigate }: { indicator: any; navigate: any;
         <div
           className={`px-5 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest border transition-all group-hover:bg-[#1a3a32] group-hover:text-white group-hover:border-[#1a3a32] flex items-center gap-2 ${getStatusStyles(indicator.status)}`}
         >
-          Review Entry <ChevronRight size={14} />
+          Begin Audit <ChevronRight size={14} />
         </div>
       </div>
     </div>
@@ -242,7 +245,6 @@ const SubmissionRow = ({ indicator, navigate }: { indicator: any; navigate: any;
 
 const getStatusStyles = (status: string) => {
   switch (status) {
-    case "approved": return "bg-emerald-50 border-emerald-100 text-emerald-700";
     case "submitted": return "bg-amber-50 border-amber-100 text-amber-700";
     case "rejected": return "bg-rose-50 border-rose-100 text-rose-700";
     default: return "bg-gray-50 border-gray-200 text-gray-600";
@@ -255,7 +257,7 @@ const LoadingState = () => (
       <div className="absolute inset-0 border-4 border-[#c2a336]/10 rounded-full" />
       <div className="absolute inset-0 border-4 border-[#c2a336] border-t-transparent rounded-full animate-spin" />
     </div>
-    <p className="mt-4 text-[10px] font-black uppercase tracking-widest text-gray-400">Loading History...</p>
+    <p className="mt-4 text-[10px] font-black uppercase tracking-widest text-gray-400">Syncing Audit Queue...</p>
   </div>
 );
 
