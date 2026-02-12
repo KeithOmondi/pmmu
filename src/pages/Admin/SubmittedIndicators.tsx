@@ -17,10 +17,9 @@ import {
   ChevronRight,
   Search,
   CheckCircle2,
-  FileWarning,
   CalendarDays,
   History,
-  Filter
+  Filter,
 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 
@@ -42,14 +41,15 @@ const SubmittedIndicators: React.FC = () => {
   }, [dispatch]);
 
   // --- FILTER CORE LOGIC ---
-  // 1. Only show items that have evidence AND are NOT approved
+  // Updated: Only show items that are currently "submitted".
+  // This automatically excludes "approved" and "rejected" statuses.
   const pendingAuditIndicators = useMemo(() => {
     return indicators.filter(
-      (i) => i.evidence && i.evidence.length > 0 && i.status !== "approved"
+      (i) => i.evidence && i.evidence.length > 0 && i.status === "submitted",
     );
   }, [indicators]);
 
-  // 2. Map users based only on the "pending audit" list
+  // 2. Map users based only on the filtered "pending" list
   const userSubmissionStats = useMemo(() => {
     return users
       .map((user) => {
@@ -62,11 +62,10 @@ const SubmittedIndicators: React.FC = () => {
         return {
           ...user,
           total: userItems.length,
-          pending: userItems.filter((i) => i.status === "submitted").length,
         };
       })
       .filter((u) => u.total > 0)
-      .sort((a, b) => a.name.localeCompare(b.name)); 
+      .sort((a, b) => a.name.localeCompare(b.name));
   }, [users, pendingAuditIndicators]);
 
   // 3. Apply search and user selection filters
@@ -81,13 +80,13 @@ const SubmittedIndicators: React.FC = () => {
       const matchesSearch = i.indicatorTitle
         .toLowerCase()
         .includes(searchTerm.toLowerCase());
-      
+
       return matchesUser && matchesSearch;
     });
 
-    // Sort by most recently updated first
-    return [...filtered].sort((a, b) => 
-      new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()
+    return [...filtered].sort(
+      (a, b) =>
+        new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime(),
     );
   }, [pendingAuditIndicators, selectedUserId, searchTerm]);
 
@@ -113,7 +112,9 @@ const SubmittedIndicators: React.FC = () => {
             onClick={() => setSelectedUserId("all")}
             className={`w-full flex justify-between items-center p-4 rounded-2xl transition-all ${selectedUserId === "all" ? "bg-gray-100 text-[#1a3a32]" : "hover:bg-gray-50 text-gray-500"}`}
           >
-            <span className="text-xs font-bold uppercase tracking-wider">All Pending</span>
+            <span className="text-xs font-bold uppercase tracking-wider">
+              All Pending
+            </span>
             <span className="text-[10px] font-black bg-white px-2 py-1 rounded-lg border">
               {pendingAuditIndicators.length}
             </span>
@@ -121,7 +122,9 @@ const SubmittedIndicators: React.FC = () => {
 
           <div className="pt-6 pb-2 px-4 flex items-center gap-2">
             <Filter size={10} className="text-gray-400" />
-            <span className="text-[9px] font-black text-gray-400 uppercase tracking-[0.2em]">Filter by Official</span>
+            <span className="text-[9px] font-black text-gray-400 uppercase tracking-[0.2em]">
+              Filter by Official
+            </span>
           </div>
 
           {userSubmissionStats.map((user) => (
@@ -131,11 +134,13 @@ const SubmittedIndicators: React.FC = () => {
               className={`w-full group flex items-center justify-between p-3 rounded-xl transition-all ${selectedUserId === user._id ? "bg-emerald-50 border border-emerald-100" : "hover:bg-gray-50"}`}
             >
               <div className="flex items-center gap-3 overflow-hidden">
-                <div className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 ${user.pending > 0 ? "bg-amber-100 text-amber-600" : "bg-gray-100 text-gray-400"}`}>
+                <div className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0 bg-amber-100 text-amber-600">
                   <UserIcon size={14} />
                 </div>
                 <div className="text-left overflow-hidden">
-                  <p className={`text-[11px] font-bold truncate ${selectedUserId === user._id ? "text-[#1a3a32]" : "text-gray-600"}`}>
+                  <p
+                    className={`text-[11px] font-bold truncate ${selectedUserId === user._id ? "text-[#1a3a32]" : "text-gray-600"}`}
+                  >
                     {user.name}
                   </p>
                   <p className="text-[9px] text-gray-400 font-medium uppercase">
@@ -152,7 +157,9 @@ const SubmittedIndicators: React.FC = () => {
         <header className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6 mb-10">
           <div>
             <h1 className="text-2xl font-serif font-bold text-[#1a3a32]">
-              {selectedUserId === "all" ? "Audit Queue" : `Review: ${users.find((u) => u._id === selectedUserId)?.name}`}
+              {selectedUserId === "all"
+                ? "Audit Queue"
+                : `Review: ${users.find((u) => u._id === selectedUserId)?.name}`}
             </h1>
             <p className="text-[10px] font-black text-[#c2a336] uppercase tracking-widest mt-1">
               Showing submissions awaiting approval
@@ -160,7 +167,10 @@ const SubmittedIndicators: React.FC = () => {
           </div>
 
           <div className="relative w-full md:w-72">
-            <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-300" size={16} />
+            <Search
+              className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-300"
+              size={16}
+            />
             <input
               type="text"
               placeholder="Search indicators..."
@@ -174,7 +184,9 @@ const SubmittedIndicators: React.FC = () => {
         {!filteredSubmissions.length ? (
           <div className="py-24 text-center bg-white rounded-[3rem] border border-dashed border-gray-200">
             <CheckCircle2 size={48} className="mx-auto text-emerald-100 mb-4" />
-            <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Inbox Zero: No pending reviews</p>
+            <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest">
+              Inbox Zero: No pending reviews
+            </p>
           </div>
         ) : (
           <div className="grid gap-4">
@@ -190,11 +202,24 @@ const SubmittedIndicators: React.FC = () => {
 
 /* --- SUB-COMPONENT --- */
 
-const SubmissionRow = ({ indicator, navigate }: { indicator: any; navigate: any; }) => {
+const SubmissionRow = ({
+  indicator,
+  navigate,
+}: {
+  indicator: any;
+  navigate: any;
+}) => {
   const isResubmitted = indicator.rejectionCount > 0;
-  const lastActivityDate = new Date(indicator.updatedAt).toLocaleString('en-US', {
-    month: 'short', day: 'numeric', year: 'numeric', hour: '2-digit', minute: '2-digit'
-  });
+  const lastActivityDate = new Date(indicator.updatedAt).toLocaleString(
+    "en-US",
+    {
+      month: "short",
+      day: "numeric",
+      year: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
+    },
+  );
 
   return (
     <div
@@ -202,53 +227,46 @@ const SubmissionRow = ({ indicator, navigate }: { indicator: any; navigate: any;
       className="group bg-white p-6 rounded-[2rem] border border-gray-50 hover:border-[#c2a336]/30 hover:shadow-xl hover:shadow-[#1a3a32]/5 transition-all cursor-pointer flex flex-col md:flex-row md:items-center justify-between gap-6"
     >
       <div className="flex items-start gap-5 flex-1">
-        <div className={`w-14 h-14 rounded-2xl flex items-center justify-center shrink-0 transition-colors ${indicator.status === "submitted" ? "bg-amber-50 text-amber-600" : "bg-rose-50 text-rose-600"}`}>
-          {indicator.status === "submitted" ? <Clock size={24} /> : <FileWarning size={24} />}
+        <div className="w-14 h-14 rounded-2xl flex items-center justify-center shrink-0 transition-colors bg-amber-50 text-amber-600">
+          <Clock size={24} />
         </div>
-        
+
         <div className="overflow-hidden space-y-2">
           <div className="flex items-center gap-3">
-             <h3 className="font-bold text-[#1a3a32] text-sm group-hover:text-[#c2a336] transition-colors truncate">
-                {indicator.indicatorTitle}
-             </h3>
-             {isResubmitted && (
-               <span className="flex items-center gap-1 bg-orange-100 text-orange-700 text-[8px] font-black px-2 py-1 rounded-md uppercase border border-orange-200">
-                 <History size={10} /> Resubmitted
-               </span>
-             )}
+            <h3 className="font-bold text-[#1a3a32] text-sm group-hover:text-[#c2a336] transition-colors truncate">
+              {indicator.indicatorTitle}
+            </h3>
+            {isResubmitted && (
+              <span className="flex items-center gap-1 bg-orange-100 text-orange-700 text-[8px] font-black px-2 py-1 rounded-md uppercase border border-orange-200">
+                <History size={10} /> Resubmitted
+              </span>
+            )}
           </div>
 
           <div className="flex flex-wrap items-center gap-y-2 gap-x-4">
             <span className="text-[10px] font-black text-gray-400 uppercase flex items-center gap-1.5">
-               <Inbox size={12} className="text-[#c2a336]" /> {indicator.evidence.length} Documents
+              <Inbox size={12} className="text-[#c2a336]" />{" "}
+              {indicator.evidence.length} Documents
             </span>
             <div className="w-1 h-1 rounded-full bg-gray-200 hidden sm:block" />
             <span className="text-[10px] font-medium text-slate-500 flex items-center gap-1.5">
-               <CalendarDays size={12} className="text-slate-400" /> 
-               <span className="font-black text-[9px] uppercase text-slate-400">Activity:</span> 
-               {lastActivityDate}
+              <CalendarDays size={12} className="text-slate-400" />
+              <span className="font-black text-[9px] uppercase text-slate-400">
+                Activity:
+              </span>
+              {lastActivityDate}
             </span>
           </div>
         </div>
       </div>
 
       <div className="flex items-center justify-between md:justify-end gap-6 border-t md:border-t-0 pt-4 md:pt-0 border-gray-100">
-        <div
-          className={`px-5 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest border transition-all group-hover:bg-[#1a3a32] group-hover:text-white group-hover:border-[#1a3a32] flex items-center gap-2 ${getStatusStyles(indicator.status)}`}
-        >
+        <div className="px-5 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest border transition-all group-hover:bg-[#1a3a32] group-hover:text-white group-hover:border-[#1a3a32] flex items-center gap-2 bg-amber-50 border-amber-100 text-amber-700">
           Begin Audit <ChevronRight size={14} />
         </div>
       </div>
     </div>
   );
-};
-
-const getStatusStyles = (status: string) => {
-  switch (status) {
-    case "submitted": return "bg-amber-50 border-amber-100 text-amber-700";
-    case "rejected": return "bg-rose-50 border-rose-100 text-rose-700";
-    default: return "bg-gray-50 border-gray-200 text-gray-600";
-  }
 };
 
 const LoadingState = () => (
@@ -257,7 +275,9 @@ const LoadingState = () => (
       <div className="absolute inset-0 border-4 border-[#c2a336]/10 rounded-full" />
       <div className="absolute inset-0 border-4 border-[#c2a336] border-t-transparent rounded-full animate-spin" />
     </div>
-    <p className="mt-4 text-[10px] font-black uppercase tracking-widest text-gray-400">Syncing Audit Queue...</p>
+    <p className="mt-4 text-[10px] font-black uppercase tracking-widest text-gray-400">
+      Syncing Audit Queue...
+    </p>
   </div>
 );
 

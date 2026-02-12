@@ -83,23 +83,15 @@ const SubmittedIndicatorDetail: React.FC = () => {
     }
   }, [indicator?._id, indicator?.progress]);
 
-  /**
-   * UPDATED: handleUpdateEvidenceDescription
-   * Solves the Traceability Error by checking both _id and id fields
-   */
   const handleUpdateEvidenceDescription = async () => {
     if (!indicator || !editingFile) return;
-
-    // Ensure we are grabbing the correct MongoDB _id
     const evidenceId = editingFile._id;
 
     if (!evidenceId || evidenceId.includes("evidence-")) {
-      console.error("Critical: Attempting to edit a file without a server-side ID");
       toast.error("Traceability Error: Exhibit not yet synced with server.");
       return;
     }
 
-    // Skip if no change
     if (editDescription.trim() === (editingFile.description || "").trim()) {
       setEditingFile(null);
       return;
@@ -125,44 +117,59 @@ const SubmittedIndicatorDetail: React.FC = () => {
   };
 
   const handleApprove = async () => {
-    if (!indicator || isFinalized) return;
-    try {
-      setIsUpdating(true);
-      if (isSuperAdmin) {
-        await dispatch(
-          submitIndicatorScore({
-            id: indicator._id,
-            score: selectedScore,
-            note: "Final score assigned and record sealed by Super Admin.",
-          }),
-        ).unwrap();
+  if (!indicator || isFinalized) return;
+  try {
+    setIsUpdating(true);
+    
+    // 1. Sanitize evidence to ensure uploadedBy is never undefined
+    const sanitizedEvidence: IEvidence[] = indicator.evidence.map(ev => ({
+      ...ev,
+      uploadedBy: ev.uploadedBy || currentUser?._id || "system_admin" 
+    })) as IEvidence[];
 
-        await dispatch(
-          updateIndicator({
-            id: indicator._id,
-            updates: {
-              status: "completed",
-              reviewedAt: new Date().toISOString(),
-            },
-          }),
-        ).unwrap();
-        toast.success(`Registry Certified & Sealed at ${selectedScore}%`);
-      } else {
-        await dispatch(
-          approveIndicator({
-            id: indicator._id,
-            notes: "Verified by Admin. Forwarded for Super Admin certification.",
-          }),
-        ).unwrap();
-        toast.success("Verified. Pending final score assignment.");
-      }
-      navigate("/admin/dashboard");
-    } catch (err: any) {
-      toast.error(err || "Action failed.");
-    } finally {
-      setIsUpdating(false);
+    if (isSuperAdmin) {
+      // 2. Use submitIndicatorScore to finalize the rating
+      await dispatch(
+        submitIndicatorScore({
+          id: indicator._id,
+          score: selectedScore,
+          note: "Final certification by Super Admin",
+        })
+      ).unwrap();
+
+      // 3. Update status to completed and sync sanitized evidence
+      await dispatch(
+        updateIndicator({
+          id: indicator._id,
+          updates: {
+            status: "completed",
+            reviewedAt: new Date().toISOString(),
+            evidence: sanitizedEvidence, 
+          },
+        }),
+      ).unwrap();
+      
+      toast.success(`Registry Certified & Sealed`);
+    } else {
+      // 4. Use approveIndicator for standard Admin verification
+      await dispatch(
+        approveIndicator({ 
+          id: indicator._id, 
+          notes: "Exhibits verified by Admin" 
+        })
+      ).unwrap();
+      
+      toast.success("Exhibits Verified");
     }
-  };
+    
+    navigate("/admin/dashboard");
+  } catch (err: any) {
+    toast.error(err || "Operation failed");
+    console.error("Approval error:", err);
+  } finally {
+    setIsUpdating(false);
+  }
+};
 
   const handleReject = async () => {
     if (!indicator || !rejectReason.trim()) return toast.error("Justification required.");
@@ -194,7 +201,7 @@ const SubmittedIndicatorDetail: React.FC = () => {
         ?.map((uid) => users.find((u) => u._id === uid)?.name)
         .filter(Boolean)
         .join(", ") || "Assigned Group"
-    );
+      );
   }, [indicator, users]);
 
   if (loading) return <LoadingState />;
@@ -237,7 +244,6 @@ const SubmittedIndicatorDetail: React.FC = () => {
             </div>
           )}
 
-          {/* PRIMARY INFO CARD */}
           <div className="bg-white rounded-[2.5rem] p-10 border border-slate-100 shadow-sm">
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
               <div className="flex items-center gap-2 text-[#c2a336] font-black uppercase text-[10px] tracking-widest">
@@ -258,7 +264,6 @@ const SubmittedIndicatorDetail: React.FC = () => {
             </div>
           </div>
 
-          {/* EVIDENCE LEDGER */}
           <div className="bg-white rounded-[2.5rem] p-10 border border-slate-100 shadow-sm">
             <div className="mb-8 border-b border-slate-50 pb-6">
               <h3 className="text-[10px] font-black text-[#1a3a32] uppercase tracking-widest flex items-center gap-2">
@@ -312,7 +317,6 @@ const SubmittedIndicatorDetail: React.FC = () => {
             )}
           </div>
 
-          {/* AUDIT HISTORY */}
           <div className="bg-white rounded-[2.5rem] p-10 border border-slate-100 shadow-sm">
             <h3 className="text-[10px] font-black text-[#1a3a32] uppercase tracking-widest flex items-center gap-2 mb-8">
               <Activity className="text-[#c2a336]" size={18} /> Audit History
@@ -340,7 +344,6 @@ const SubmittedIndicatorDetail: React.FC = () => {
           </div>
         </div>
 
-        {/* SIDEBAR */}
         <div className="bg-[#1a3a32] rounded-[3rem] p-8 text-white shadow-2xl space-y-8 sticky top-10">
           <div className="space-y-4">
             <h3 className="text-[10px] font-black uppercase tracking-widest text-[#c2a336]">Scoring Terminal</h3>
@@ -401,7 +404,6 @@ const SubmittedIndicatorDetail: React.FC = () => {
         </div>
       </div>
 
-      {/* MODALS */}
       {editingFile && (
         <EditEvidenceDescriptionModal
           fileName={editingFile.fileName}
