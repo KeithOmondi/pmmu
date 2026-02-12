@@ -27,7 +27,7 @@ import {
 } from "lucide-react";
 
 /* =====================================
-   COMPONENT
+    COMPONENT
 ===================================== */
 const AdminIndicatorDetail: React.FC = () => {
   const { id } = useParams<{ id: string }>();
@@ -53,9 +53,22 @@ const AdminIndicatorDetail: React.FC = () => {
   /* =====================================
       HELPERS
   ===================================== */
-  const getUserName = (userId: string | null): string => {
-    if (!userId) return "System Official";
-    const user = users.find((u: IUser) => u._id === userId);
+  /**
+   * FIX: Updated to handle both string IDs and populated objects
+   * per the TS2345 error.
+   */
+  const getUserName = (
+    userParam: string | { _id: string; name: string } | null,
+  ): string => {
+    if (!userParam) return "System Official";
+
+    // If it's a populated object, return the name property directly
+    if (typeof userParam === "object" && "name" in userParam) {
+      return userParam.name;
+    }
+
+    // If it's a string ID, look it up in the users store
+    const user = users.find((u: IUser) => u._id === userParam);
     return user?.name ?? "Unknown Official";
   };
 
@@ -145,11 +158,15 @@ const AdminIndicatorDetail: React.FC = () => {
 
             <div className="flex flex-wrap gap-6 pt-4 text-white/70">
               <div className="flex items-center gap-2 text-sm font-medium">
-                <Info size={16} className="text-[#c2a336]" />
+                <span className="p-1 bg-[#c2a336]/20 rounded text-[#c2a336]">
+                  <Info size={14} />
+                </span>
                 {indicator.category?.title ?? "General Category"}
               </div>
               <div className="flex items-center gap-2 text-sm font-medium">
-                <Activity size={16} className="text-[#c2a336]" />
+                <span className="p-1 bg-[#c2a336]/20 rounded text-[#c2a336]">
+                  <Activity size={14} />
+                </span>
                 Metric: {indicator.unitOfMeasure}
               </div>
             </div>
@@ -201,7 +218,7 @@ const AdminIndicatorDetail: React.FC = () => {
                 </div>
                 <div className="w-full bg-gray-200 rounded-full h-3">
                   <div
-                    className="bg-[#1a3a32] h-3 rounded-full"
+                    className="bg-[#1a3a32] h-3 rounded-full transition-all duration-500"
                     style={{ width: `${indicator.progress}%` }}
                   />
                 </div>
@@ -297,7 +314,7 @@ const AdminIndicatorDetail: React.FC = () => {
 };
 
 /* =====================================
-   UI HELPERS (SUB-COMPONENTS)
+    UI HELPERS (SUB-COMPONENTS)
 ===================================== */
 const Section: React.FC<{
   title: string;
@@ -335,7 +352,7 @@ const DetailItem = ({
 );
 
 const getStatusStyles = (status: string) => {
-  switch (status.toLowerCase()) {
+  switch (status?.toLowerCase()) {
     case "approved":
     case "completed":
       return "bg-emerald-500/20 border-emerald-500/50 text-emerald-100";
