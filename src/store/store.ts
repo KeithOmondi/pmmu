@@ -9,6 +9,7 @@ import adminReducer from "./slices/adminSlice";
 import streamReducer from "./slices/streamSlice";
 import indicatorEvidenceReducer from "./slices/indicators/evidenceSlice"
 import scoreReducer from "./slices/scoreSlice";
+import auditReducer from "./slices/auditSlice"
 
 export const store = configureStore({
   reducer: {
@@ -22,6 +23,7 @@ export const store = configureStore({
     stream: streamReducer,
     indicatorEvidence: indicatorEvidenceReducer,
     score: scoreReducer,
+    audit: auditReducer
   },
   middleware: (getDefaultMiddleware) =>
     getDefaultMiddleware({ serializableCheck: false }),

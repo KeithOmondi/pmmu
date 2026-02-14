@@ -482,6 +482,33 @@ export const adminSubmitIndicatorEvidence = createAsyncThunk<
 );
 
 /* =====================================================
+   THUNK: BROADCAST OVERDUE REMINDERS
+===================================================== */
+export const remindOverdueIndicators = createAsyncThunk(
+  "indicators/remindOverdue",
+  async (_, { rejectWithValue }) => {
+    try {
+      const config = {
+        headers: { "Content-Type": "application/json" },
+        withCredentials: true, // Required if using cookies/sessions
+      };
+
+      const { data } = await api.post(
+        `/indicators/admin/remind-overdue`,
+        {},
+        config
+      );
+
+      return data.message;
+    } catch (error: any) {
+      return rejectWithValue(
+        error.response?.data?.message || "Failed to send reminders"
+      );
+    }
+  }
+);
+
+/* =====================================================
    SELECTORS
 ===================================================== */
 
@@ -514,6 +541,7 @@ export const selectRejectedEvidence = (state: RootState) => {
   );
 };
 
+
 /* =====================================================
    SLICE
 ===================================================== */
@@ -544,6 +572,7 @@ const indicatorSlice = createSlice({
       .addCase(createIndicator.fulfilled, (s, a) => {
         s.allIndicators = [a.payload, ...s.allIndicators];
       })
+      
       .addCase(deleteIndicator.fulfilled, (s, a) => {
         const id = a.payload;
         s.allIndicators = s.allIndicators.filter((i) => i._id !== id);
