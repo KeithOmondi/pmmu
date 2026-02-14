@@ -19,6 +19,8 @@ import {
   FileText,
   MessageSquare,
   Search,
+  CheckCircle2,
+  Clock,
 } from "lucide-react";
 import EvidencePreviewModal from "../User/EvidencePreviewModal";
 
@@ -57,7 +59,7 @@ const SuperAdminRejected: React.FC = () => {
     return (
       <div className="flex flex-col justify-center items-center h-[60vh] text-[#1a3a32]">
         <Loader2 className="w-10 h-10 animate-spin mb-4 text-[#c2a336]" />
-        <p className="text-[10px] font-black uppercase tracking-[0.3em]">Filtering Rejection History...</p>
+        <p className="text-[10px] font-black uppercase tracking-[0.3em]">Accessing Rejection Archives...</p>
       </div>
     );
   }
@@ -117,9 +119,9 @@ const SuperAdminRejected: React.FC = () => {
               </div>
               <button
                 onClick={() => setSelectedIndicator(i)}
-                className="flex items-center gap-2 px-6 py-2.5 bg-gray-100 text-[#1a3a32] text-[11px] font-black uppercase rounded-xl hover:bg-rose-600 hover:text-white transition-all shadow-sm hover:shadow-rose-200"
+                className="flex items-center gap-2 px-6 py-2.5 bg-gray-100 text-[#1a3a32] text-[11px] font-black uppercase rounded-xl hover:bg-rose-600 hover:text-white transition-all shadow-sm"
               >
-                <Eye size={14} /> View Details
+                <Eye size={14} /> Audit Dossier
               </button>
             </div>
           ))}
@@ -137,7 +139,7 @@ const SuperAdminRejected: React.FC = () => {
   );
 };
 
-/* --- REJECTION MODAL --- */
+/* --- ENHANCED REJECTION MODAL --- */
 const RejectionModal: React.FC<{ indicator: IIndicator; onClose: () => void; getNameFromId: (id: any) => string }> = ({
   indicator,
   onClose,
@@ -145,22 +147,25 @@ const RejectionModal: React.FC<{ indicator: IIndicator; onClose: () => void; get
 }) => {
   const [previewFile, setPreviewFile] = useState<IEvidence | null>(null);
 
-  const rejectedEvidence = useMemo(() => {
+  const archivedEvidence = useMemo(() => {
     return (indicator.evidence || []).filter(e => e.isArchived);
+  }, [indicator.evidence]);
+
+  const activeEvidence = useMemo(() => {
+    return (indicator.evidence || []).filter(e => !e.isArchived);
   }, [indicator.evidence]);
 
   return (
     <>
-      {/* Main Rejection Modal - Fixed at z-[1000] */}
       <div className="fixed inset-0 z-[1000] flex items-center justify-center p-4">
         <div className="absolute inset-0 bg-[#1a3a32]/70 backdrop-blur-md" onClick={onClose} />
-        <div className="relative bg-white w-full max-w-2xl rounded-[2.5rem] overflow-hidden shadow-2xl flex flex-col max-h-[90vh] animate-in zoom-in-95 duration-200">
+        <div className="relative bg-white w-full max-w-3xl rounded-[2.5rem] overflow-hidden shadow-2xl flex flex-col max-h-[90vh] animate-in zoom-in-95 duration-200">
           
           {/* Header */}
           <div className="bg-rose-600 p-8 text-white flex justify-between items-start">
             <div>
               <div className="flex items-center gap-2 text-rose-200 mb-1 font-black uppercase tracking-widest text-[10px]">
-                <AlertOctagon size={14} /> Rejection Dossier
+                <AlertOctagon size={14} /> Rejection Dossier & Evidence Audit
               </div>
               <h3 className="text-2xl font-black leading-tight">{indicator.indicatorTitle}</h3>
             </div>
@@ -169,44 +174,52 @@ const RejectionModal: React.FC<{ indicator: IIndicator; onClose: () => void; get
             </button>
           </div>
 
-          <div className="p-8 space-y-6 overflow-y-auto custom-scrollbar">
-            {/* Metadata Section */}
-            <div className="flex items-center justify-between p-4 bg-rose-50 rounded-2xl border border-rose-100">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-full bg-rose-600 flex items-center justify-center text-white shadow-sm">
-                  <UserX size={18} />
-                </div>
-                <div>
-                  <p className="text-[10px] font-black text-rose-400 uppercase">Rejected By</p>
-                  <p className="text-sm font-bold text-[#1a3a32]">
-                    {getNameFromId(indicator.reviewedBy)}
-                  </p>
-                </div>
-              </div>
-              <div className="text-right">
-                <p className="text-[10px] font-black text-rose-400 uppercase">Rejection Date</p>
-                <p className="text-sm font-bold text-[#1a3a32]">
-                  {indicator.reviewedAt ? new Date(indicator.reviewedAt).toLocaleDateString() : "Pending Log"}
-                </p>
-              </div>
+          <div className="p-8 space-y-8 overflow-y-auto custom-scrollbar bg-white">
+            
+            {/* AUDIT METADATA */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+               <div className="flex items-center gap-3 p-4 bg-rose-50 rounded-2xl border border-rose-100">
+                  <div className="w-10 h-10 rounded-full bg-rose-600 flex items-center justify-center text-white shadow-sm">
+                    <UserX size={18} />
+                  </div>
+                  <div>
+                    <p className="text-[10px] font-black text-rose-400 uppercase">Reviewing Officer</p>
+                    <p className="text-sm font-bold text-[#1a3a32]">{getNameFromId(indicator.reviewedBy)}</p>
+                  </div>
+               </div>
+               <div className="flex items-center gap-3 p-4 bg-slate-50 rounded-2xl border border-slate-100">
+                  <div className="w-10 h-10 rounded-full bg-slate-600 flex items-center justify-center text-white shadow-sm">
+                    <Clock size={18} />
+                  </div>
+                  <div>
+                    <p className="text-[10px] font-black text-slate-400 uppercase">Audit Timestamp</p>
+                    <p className="text-sm font-bold text-[#1a3a32]">
+                       {indicator.reviewedAt ? new Date(indicator.reviewedAt).toLocaleString('en-GB', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : "Manual Override"}
+                    </p>
+                  </div>
+               </div>
             </div>
 
-            {/* Evidence List */}
+            {/* ACTIVE EVIDENCE (NEW UPLOADS) */}
             <section className="space-y-4">
-              <div className="flex items-center gap-2 text-[10px] font-black text-gray-400 uppercase tracking-widest">
-                <FileText size={14} /> Failed Evidence ({rejectedEvidence.length})
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2 text-[10px] font-black text-emerald-600 uppercase tracking-widest">
+                  <CheckCircle2 size={14} /> Active Submissions ({activeEvidence.length})
+                </div>
+                <span className="text-[8px] font-black bg-emerald-100 text-emerald-700 px-2 py-0.5 rounded-full uppercase">Current Version</span>
               </div>
-              {rejectedEvidence.length > 0 ? (
+              
+              {activeEvidence.length > 0 ? (
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  {rejectedEvidence.map((file) => (
-                    <div key={file._id} className="flex items-center justify-between p-4 bg-gray-50 rounded-2xl border border-gray-100 hover:border-rose-200 transition-all">
+                  {activeEvidence.map((file) => (
+                    <div key={file._id} className="flex items-center justify-between p-4 bg-emerald-50/30 rounded-2xl border border-emerald-100 group transition-all">
                       <div className="flex items-center gap-3 overflow-hidden">
-                        <FileText size={18} className="text-rose-500 shrink-0" />
+                        <FileText size={18} className="text-emerald-500 shrink-0" />
                         <span className="text-xs font-bold text-gray-700 truncate">{file.fileName}</span>
                       </div>
                       <button 
                         onClick={() => setPreviewFile(file)} 
-                        className="p-2 bg-white rounded-lg text-rose-600 shadow-sm hover:bg-rose-600 hover:text-white transition-colors"
+                        className="p-2 bg-white rounded-lg text-emerald-600 shadow-sm hover:bg-emerald-600 hover:text-white transition-colors"
                       >
                         <Eye size={14} />
                       </button>
@@ -214,30 +227,62 @@ const RejectionModal: React.FC<{ indicator: IIndicator; onClose: () => void; get
                   ))}
                 </div>
               ) : (
-                <div className="p-6 bg-gray-50 rounded-2xl border border-dashed text-center font-medium italic text-gray-400 text-xs">No documents attached to this version.</div>
+                <div className="p-6 bg-gray-50 rounded-2xl border border-dashed text-center font-medium italic text-gray-400 text-xs">No active files currently found.</div>
               )}
             </section>
 
-            {/* Rejection Remarks */}
+            {/* ARCHIVED EVIDENCE (FAILED HISTORY) */}
             <section className="space-y-4">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2 text-[10px] font-black text-rose-400 uppercase tracking-widest">
+                  <History size={14} /> Rejected Archives ({archivedEvidence.length})
+                </div>
+                <span className="text-[8px] font-black bg-rose-100 text-rose-700 px-2 py-0.5 rounded-full uppercase">Archived</span>
+              </div>
+
+              {archivedEvidence.length > 0 ? (
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 opacity-80">
+                  {archivedEvidence.map((file) => (
+                    <div key={file._id} className="flex items-center justify-between p-4 bg-gray-50 rounded-2xl border border-gray-100 hover:border-rose-200 transition-all">
+                      <div className="flex items-center gap-3 overflow-hidden">
+                        <FileText size={18} className="text-rose-400 shrink-0" />
+                        <span className="text-xs font-bold text-gray-400 truncate italic">{file.fileName}</span>
+                      </div>
+                      <button 
+                        onClick={() => setPreviewFile(file)} 
+                        className="p-2 bg-white rounded-lg text-rose-400 shadow-sm hover:bg-rose-600 hover:text-white transition-colors"
+                      >
+                        <Eye size={14} />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="p-6 bg-gray-50 rounded-2xl border border-dashed text-center font-medium italic text-gray-400 text-xs">No previous archives found.</div>
+              )}
+            </section>
+
+            {/* REJECTION HISTORY / REMARKS */}
+            <section className="space-y-4 pt-4 border-t border-slate-100">
               <div className="flex items-center gap-2 text-[10px] font-black text-gray-400 uppercase tracking-widest">
-                <MessageSquare size={14} /> Reason for Rejection
+                <MessageSquare size={14} /> Rejection Narrative
               </div>
               <div className="space-y-4">
                 {indicator.notes?.length > 0 ? (
                   [...indicator.notes].reverse().map((note, idx) => (
                     <div key={idx} className="relative pl-6 pb-2 border-l-2 border-slate-100 last:border-0">
-                      <div className="absolute -left-[9px] top-1 w-4 h-4 rounded-full bg-white border-2 border-rose-500" />
+                      <div className="absolute -left-[9px] top-1 w-4 h-4 rounded-full bg-white border-2 border-rose-500 shadow-sm" />
                       <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100">
-                        <p className="text-sm text-gray-700 leading-relaxed font-medium">"{note.text}"</p>
-                        <div className="mt-2 text-[9px] font-bold text-gray-400 uppercase">
-                          Action By: {getNameFromId(note.createdBy)} | {new Date(note.createdAt).toLocaleDateString()}
+                        <p className="text-sm text-gray-700 leading-relaxed font-medium italic">"{note.text}"</p>
+                        <div className="mt-3 flex items-center justify-between text-[9px] font-bold text-gray-400 uppercase">
+                          <span>By: {getNameFromId(note.createdBy)}</span>
+                          <span>{new Date(note.createdAt).toLocaleDateString()}</span>
                         </div>
                       </div>
                     </div>
                   ))
                 ) : (
-                  <p className="text-xs text-gray-400 italic text-center">No remarks recorded.</p>
+                  <p className="text-xs text-gray-400 italic text-center">No official remarks recorded for this rejection.</p>
                 )}
               </div>
             </section>
@@ -245,13 +290,13 @@ const RejectionModal: React.FC<{ indicator: IIndicator; onClose: () => void; get
 
           <div className="p-6 bg-gray-50 border-t text-center">
             <button onClick={onClose} className="px-10 py-3 bg-[#1a3a32] text-white rounded-xl text-[11px] font-black uppercase tracking-widest hover:bg-rose-600 transition-all shadow-md">
-              Close Audit
+              Terminate Audit View
             </button>
           </div>
         </div>
       </div>
 
-      {/* Preview Modal - Lifted to z-[1100] to sit on top of the Rejection Dossier */}
+      {/* Preview Modal Overlay */}
       {previewFile && (
         <div className="relative z-[1100]">
             <EvidencePreviewModal 
