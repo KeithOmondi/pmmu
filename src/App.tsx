@@ -43,6 +43,7 @@ import UserReport from "./pages/User/UserReports";
 import UserRejectionsPage from "./pages/User/UserRejections";
 import AdminRejectionsPage from "./pages/Admin/AdminRejections";
 import AdminApprovedIndicatorsPage from "./pages/Admin/AdminApprovedIndicators";
+import SuperAdminIndicatorsIdPage from "./pages/SuperAdmin/SuperAdminIndicatorsId";
 
 const App = () => {
   const dispatch = useAppDispatch();
@@ -102,6 +103,7 @@ const App = () => {
           <Route path="/superadmin" element={<SuperAdminLayout />}>
             <Route path="dashboard" element={<SuperAdminDashboard />} />
             <Route path="indicators" element={<SuperAdminIndicators />} />
+            <Route path="indicators/:id" element={<SuperAdminIndicatorsIdPage />} />
             <Route path="users" element={<SuperAdminUser />} />
             <Route path="approved" element={<SuperAdminApproved />} />
             <Route path="rejected" element={<SuperAdminRejected />} />
