@@ -34,8 +34,23 @@ import JSZip from "jszip";
 import EvidencePreviewModal from "./EvidencePreviewModal";
 
 /* --- CONFIGURATION --- */
-const ALLOWED_EXT = ["png", "jpg", "jpeg", "gif", "bmp", "webp", "pdf"];
-const MAX_SIZE = 5 * 1024 * 1024;
+const ALLOWED_EXT = [
+  "png",
+  "jpg",
+  "jpeg",
+  "gif",
+  "bmp",
+  "webp",
+  "pdf",
+  "doc",
+  "docx",
+  "xls",
+  "xlsx",
+  "ppt",
+  "pptx",
+];
+
+const MAX_SIZE = 5 * 1024 * 1024; // 5MB
 
 const UserIndicatorDetail: React.FC = () => {
   const { id } = useParams<{ id: string }>();
@@ -74,12 +89,10 @@ const UserIndicatorDetail: React.FC = () => {
       if (e._id === isDeleting) return false;
       if (e.isArchived) return false;
 
-      // If rejected, show only files belonging to the current rejection round
       if (isRejected && indicator.rejectionCount > 0) {
         return e.resubmissionAttempt === indicator.rejectionCount;
       }
 
-      // If submitted or pending, show everything that isn't archived/rejected
       return e.status !== "rejected";
     });
   }, [indicator, isDeleting, isRejected]);
@@ -108,6 +121,7 @@ const UserIndicatorDetail: React.FC = () => {
   const handleFileChange = async (files: FileList | null) => {
     if (!files) return;
     const extractedList: File[] = [];
+
     try {
       for (const file of Array.from(files)) {
         if (file.name.endsWith(".zip")) {
@@ -116,15 +130,13 @@ const UserIndicatorDetail: React.FC = () => {
           zip.forEach((path, entry) => {
             if (!entry.dir && !path.includes("__MACOSX")) {
               promises.push(
-                entry
-                  .async("blob")
-                  .then((b) =>
-                    extractedList.push(
-                      new File([b], entry.name, {
-                        type: "application/octet-stream",
-                      }),
-                    ),
+                entry.async("blob").then((b) =>
+                  extractedList.push(
+                    new File([b], entry.name, {
+                      type: "application/octet-stream",
+                    }),
                   ),
+                ),
               );
             }
           });
@@ -133,13 +145,31 @@ const UserIndicatorDetail: React.FC = () => {
           extractedList.push(file);
         }
       }
-      const validFiles = extractedList.filter(
-        (f) =>
-          ALLOWED_EXT.includes(f.name.split(".").pop()?.toLowerCase() || "") &&
-          f.size <= MAX_SIZE,
-      );
-      setSelectedFiles((prev) => [...prev, ...validFiles]);
-      setDescriptions((prev) => [...prev, ...validFiles.map(() => "")]);
+
+      const validFiles: File[] = [];
+
+      extractedList.forEach((f) => {
+        const fileExt = f.name.split(".").pop()?.toLowerCase() || "";
+        const isAllowedType = ALLOWED_EXT.includes(fileExt);
+        const isUnderSizeLimit = f.size <= MAX_SIZE;
+
+        if (!isAllowedType) {
+          toast.error(`"${f.name}" has an unsupported file type.`);
+        } else if (!isUnderSizeLimit) {
+          // GIVING ERROR MESSAGE INSTEAD OF SILENT REJECTION
+          toast.error(`"${f.name}" is too large. Maximum size is 5MB.`, {
+            duration: 4000,
+            icon: "⚠️",
+          });
+        } else {
+          validFiles.push(f);
+        }
+      });
+
+      if (validFiles.length > 0) {
+        setSelectedFiles((prev) => [...prev, ...validFiles]);
+        setDescriptions((prev) => [...prev, ...validFiles.map(() => "")]);
+      }
     } catch {
       toast.error("Error processing files");
     }
@@ -152,11 +182,9 @@ const UserIndicatorDetail: React.FC = () => {
 
     try {
       const payload = { id: indicator._id, files: selectedFiles, descriptions };
-
       let socketTitle = "Evidence Uploaded";
 
       if (isRejected) {
-        // SCENARIO 1: Resubmitting after a rejection
         await dispatch(
           resubmitIndicatorEvidence({
             ...payload,
@@ -165,7 +193,6 @@ const UserIndicatorDetail: React.FC = () => {
         ).unwrap();
         socketTitle = "Revision Submitted";
       } else {
-        // SCENARIO 2: Initial submission OR adding complementary files to existing submission
         await dispatch(submitIndicatorEvidence(payload)).unwrap();
         socketTitle = isSubmitted
           ? "Additional Evidence Added"
