@@ -8,7 +8,7 @@ import {
   updateIndicator,
   submitIndicatorScore,
   updateEvidenceNote,
-  rejectSingleEvidence, // Added new thunk
+  rejectSingleEvidence,
   type IEvidence,
 } from "../../store/slices/indicatorsSlice";
 import { fetchUsers, selectAllUsers } from "../../store/slices/userSlice";
@@ -32,7 +32,7 @@ import {
   Target,
   Lock,
   Activity,
-  FileX, // Added for granular rejection
+  FileX,
 } from "lucide-react";
 import toast from "react-hot-toast";
 import EvidencePreviewModal from "../User/EvidencePreviewModal";
@@ -52,34 +52,40 @@ const SubmittedIndicatorDetail: React.FC = () => {
   );
   
   const isSuperAdmin = currentUser?.role?.toLowerCase() === "superadmin";
-  const isFinalized = useMemo(() => indicator?.status === "completed", [indicator]);
+  
+  // Logic Fix: Only "completed" indicators are truly locked. 
+  // "approved" status (pending final seal) should still allow edits to notes.
+  const isLocked = useMemo(() => indicator?.status === "completed", [indicator]);
 
   const lastAdminNote = useMemo(() => {
     if (!indicator || !indicator.notes || indicator.notes.length === 0) return null;
     return indicator.notes[indicator.notes.length - 1];
   }, [indicator]);
 
-  // State Management
   const [loading, setLoading] = useState(true);
   const [previewFile, setPreviewFile] = useState<IEvidence | null>(null);
   const [showRejectModal, setShowRejectModal] = useState(false);
   const [rejectReason, setRejectReason] = useState("");
   const [selectedScore, setSelectedScore] = useState(0);
   
-  // States for Granular Evidence Actions
   const [editingFile, setEditingFile] = useState<IEvidence | null>(null);
-  const [rejectingFile, setRejectingFile] = useState<IEvidence | null>(null); // New
+  const [rejectingFile, setRejectingFile] = useState<IEvidence | null>(null);
   const [editDescription, setEditDescription] = useState("");
-  const [fileRejectReason, setFileRejectReason] = useState(""); // New
+  const [fileRejectReason, setFileRejectReason] = useState("");
   const [isUpdating, setIsUpdating] = useState(false);
 
   useEffect(() => {
     const init = async () => {
-      await Promise.all([
-        dispatch(fetchAllIndicatorsForAdmin()),
-        dispatch(fetchUsers()),
-      ]);
-      setLoading(false);
+      try {
+        await Promise.all([
+          dispatch(fetchAllIndicatorsForAdmin()).unwrap(),
+          dispatch(fetchUsers()).unwrap(),
+        ]);
+      } catch (err) {
+        toast.error("Failed to sync registry data");
+      } finally {
+        setLoading(false);
+      }
     };
     init();
   }, [dispatch]);
@@ -96,8 +102,9 @@ const SubmittedIndicatorDetail: React.FC = () => {
     if (!indicator || !editingFile) return;
     const evidenceId = editingFile._id;
 
-    if (!evidenceId || evidenceId.includes("evidence-")) {
-      toast.error("Traceability Error: Exhibit not yet synced with server.");
+    // Check if ID is valid server ID
+    if (!evidenceId || evidenceId.startsWith("evidence-")) {
+      toast.error("Database Sync Error: Please refresh before editing this specific exhibit.");
       return;
     }
 
@@ -120,7 +127,6 @@ const SubmittedIndicatorDetail: React.FC = () => {
     }
   };
 
-  // NEW: Handle Single File Rejection
   const handleRejectSingleFile = async () => {
     if (!indicator || !rejectingFile || !fileRejectReason.trim()) {
       return toast.error("Please provide a reason for rejecting this document.");
@@ -147,7 +153,7 @@ const SubmittedIndicatorDetail: React.FC = () => {
   };
 
   const handleApprove = async () => {
-    if (!indicator || isFinalized) return;
+    if (!indicator || isLocked) return;
     try {
       setIsUpdating(true);
       
@@ -329,19 +335,18 @@ const SubmittedIndicatorDetail: React.FC = () => {
                           setEditingFile(file);
                           setEditDescription(file.description || "");
                         }}
-                        disabled={isFinalized || isUpdating}
-                        className={`p-3 rounded-xl transition-all ${isFinalized ? "text-slate-200 cursor-not-allowed" : "text-slate-400 hover:text-[#c2a336] hover:bg-slate-50"}`}
-                        title="Edit Description"
+                        disabled={isLocked || isUpdating}
+                        className={`p-3 rounded-xl transition-all ${isLocked ? "text-slate-200 cursor-not-allowed bg-slate-50" : "text-slate-400 hover:text-[#c2a336] hover:bg-[#c2a336]/10 active:scale-95"}`}
+                        title={isLocked ? "Registry Sealed" : "Edit Description"}
                       >
-                        {isFinalized ? <Lock size={18} /> : <Edit3 size={18} />}
+                        {isLocked ? <Lock size={18} /> : <Edit3 size={18} />}
                       </button>
 
-                      {/* NEW: Granular Rejection Button */}
                       {file.status !== 'rejected' && (
                         <button
                           onClick={() => setRejectingFile(file)}
-                          disabled={isFinalized || isUpdating}
-                          className="p-3 rounded-xl text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition-all"
+                          disabled={isLocked || isUpdating}
+                          className={`p-3 rounded-xl transition-all ${isLocked ? "text-slate-200 cursor-not-allowed bg-slate-50" : "text-slate-400 hover:text-rose-600 hover:bg-rose-50"}`}
                           title="Reject Document"
                         >
                           <FileX size={18} />
@@ -361,7 +366,6 @@ const SubmittedIndicatorDetail: React.FC = () => {
             )}
           </div>
 
-          {/* Audit History */}
           <div className="bg-white rounded-[2.5rem] p-10 border border-slate-100 shadow-sm">
             <h3 className="text-[10px] font-black text-[#1a3a32] uppercase tracking-widest flex items-center gap-2 mb-8">
               <Activity className="text-[#c2a336]" size={18} /> Audit History
@@ -389,7 +393,7 @@ const SubmittedIndicatorDetail: React.FC = () => {
           </div>
         </div>
 
-        {/* Scoring Sidebar */}
+        {/* Sidebar Controls */}
         <div className="bg-[#1a3a32] rounded-[3rem] p-8 text-white shadow-2xl space-y-8 sticky top-10">
           <div className="space-y-4">
             <h3 className="text-[10px] font-black uppercase tracking-widest text-[#c2a336]">Scoring Terminal</h3>
@@ -408,7 +412,7 @@ const SubmittedIndicatorDetail: React.FC = () => {
                 type="range" min="0" max="100" step="1"
                 value={selectedScore}
                 onChange={(e) => setSelectedScore(parseInt(e.target.value))}
-                disabled={isFinalized || isUpdating}
+                disabled={isLocked || isUpdating}
                 className="w-full h-1.5 bg-white/10 rounded-lg appearance-none cursor-pointer accent-[#c2a336] disabled:opacity-50"
               />
               <div className="flex justify-between items-center pt-2">
@@ -432,16 +436,16 @@ const SubmittedIndicatorDetail: React.FC = () => {
           <div className="space-y-3 pt-6 border-t border-white/10">
             <button
               onClick={handleApprove}
-              disabled={isFinalized || isUpdating || (!isSuperAdmin && indicator.status === "approved")}
-              className={`w-full flex items-center justify-center gap-3 py-5 rounded-2xl font-black text-[11px] uppercase tracking-widest transition-all ${isFinalized ? "bg-emerald-600/20 text-emerald-400 border border-emerald-500/20" : "bg-[#c2a336] text-[#1a3a32] hover:bg-[#d4b44a] shadow-xl shadow-[#c2a336]/10"}`}
+              disabled={isLocked || isUpdating || (!isSuperAdmin && indicator.status === "approved")}
+              className={`w-full flex items-center justify-center gap-3 py-5 rounded-2xl font-black text-[11px] uppercase tracking-widest transition-all ${isLocked ? "bg-emerald-600/20 text-emerald-400 border border-emerald-500/20" : "bg-[#c2a336] text-[#1a3a32] hover:bg-[#d4b44a] shadow-xl shadow-[#c2a336]/10"}`}
             >
-              {isUpdating ? <Loader2 size={18} className="animate-spin" /> : isFinalized ? <Lock size={18} /> : <Gavel size={18} />}
-              {isFinalized ? "Registry Sealed" : isSuperAdmin ? "Certify & Seal Record" : "Approve Exhibits"}
+              {isUpdating ? <Loader2 size={18} className="animate-spin" /> : isLocked ? <Lock size={18} /> : <Gavel size={18} />}
+              {isLocked ? "Registry Sealed" : isSuperAdmin ? "Certify & Seal Record" : "Approve Exhibits"}
             </button>
 
             <button
               onClick={() => setShowRejectModal(true)}
-              disabled={isFinalized || isUpdating}
+              disabled={isLocked || isUpdating}
               className="w-full flex items-center justify-center gap-3 py-5 rounded-2xl font-black text-[11px] uppercase bg-white/5 hover:bg-white/10 text-white border border-white/10 transition-colors disabled:opacity-30"
             >
               <XCircle size={18} /> Return for Revision
@@ -463,7 +467,6 @@ const SubmittedIndicatorDetail: React.FC = () => {
         />
       )}
 
-      {/* NEW: Single File Rejection Modal */}
       {rejectingFile && (
         <RejectFileModal
           fileName={rejectingFile.fileName}
@@ -496,7 +499,7 @@ const SubmittedIndicatorDetail: React.FC = () => {
   );
 };
 
-/* --- SUBCOMPONENTS --- */
+/* --- SHARED COMPONENTS --- */
 
 const Stat = ({ icon, label, value }: { icon: any; label: string; value: string | number }) => (
   <div className="space-y-2">
@@ -528,7 +531,8 @@ const getStatusStyles = (s: string) => {
   return "bg-blue-50 text-blue-700 border-blue-200";
 };
 
-// NEW: Reject Single File Modal Component
+/* --- MODAL SUBCOMPONENTS --- */
+
 const RejectFileModal = ({ fileName, reason, setReason, onConfirm, onClose, loading }: any) => (
   <div className="fixed inset-0 bg-rose-950/40 backdrop-blur-md flex justify-center items-center z-[1000] p-4">
     <div className="bg-white rounded-[2.5rem] p-10 w-full max-w-lg shadow-2xl">

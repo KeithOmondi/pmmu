@@ -10,10 +10,7 @@ const API_BASE_URL = import.meta.env.VITE_API_URL;
 
 const api = axios.create({
   baseURL: API_BASE_URL,
-  withCredentials: true,
-  headers: {
-    "Content-Type": "application/json",
-  },
+  withCredentials: true, // required for cookies
 });
 
 /* =========================
@@ -33,16 +30,16 @@ export const injectDispatch = (d: AppDispatch) => {
 let isRefreshing = false;
 
 type FailedQueueItem = {
-  resolve: (token: string) => void;
+  resolve: (token?: string) => void;
   reject: (error: AxiosError) => void;
 };
 
 let failedQueue: FailedQueueItem[] = [];
 
-const processQueue = (error: AxiosError | null, token: string | null) => {
+const processQueue = (error: AxiosError | null, token?: string) => {
   failedQueue.forEach(({ resolve, reject }) => {
     if (error) reject(error);
-    else if (token) resolve(token);
+    else resolve(token);
   });
   failedQueue = [];
 };
@@ -53,15 +50,11 @@ const processQueue = (error: AxiosError | null, token: string | null) => {
 
 api.interceptors.request.use(
   (config: InternalAxiosRequestConfig) => {
+    // Automatically attach accessToken from localStorage if present
     const token = localStorage.getItem("accessToken");
-    if (token) {
-      config.headers.Authorization = `Bearer ${token}`;
-    }
+    if (token) config.headers.Authorization = `Bearer ${token}`;
 
-    /* --- THE FIX --- */
-    // If we are sending FormData (files), we MUST delete the default Content-Type header.
-    // This allows the browser to automatically set it to 'multipart/form-data' 
-    // and include the essential 'boundary' parameter.
+    // If sending FormData (files), remove Content-Type to let browser handle boundary
     if (config.data instanceof FormData) {
       delete config.headers["Content-Type"];
     }
@@ -82,49 +75,34 @@ api.interceptors.response.use(
       _retry?: boolean;
     };
 
-    const status = error.response?.status;
-
-    // Only handle 401s
-    if (status !== 401 || !originalRequest) {
+    if (error.response?.status !== 401 || !originalRequest) {
       return Promise.reject(error);
     }
 
-    // Prevent infinite retry loops
-    if (originalRequest._retry) {
-      return Promise.reject(error);
-    }
-
+    // Prevent infinite loops
+    if (originalRequest._retry) return Promise.reject(error);
     originalRequest._retry = true;
 
-    /* =========================
-       IF REFRESH ITSELF FAILS
-    ========================= */
-
+    // If refreshing failed
     if (originalRequest.url?.includes("/auth/refresh")) {
       localStorage.removeItem("accessToken");
-      if (dispatch) dispatch(forceLogout());
+      dispatch?.(forceLogout());
       return Promise.reject(error);
     }
 
-    /* =========================
-       QUEUE IF ALREADY REFRESHING
-    ========================= */
-
+    // Queue requests while refreshing
     if (isRefreshing) {
       return new Promise((resolve, reject) => {
         failedQueue.push({
-          resolve: (token: string) => {
-            originalRequest.headers.Authorization = `Bearer ${token}`;
+          resolve: (token?: string) => {
+            if (token)
+              originalRequest.headers.Authorization = `Bearer ${token}`;
             resolve(api(originalRequest));
           },
           reject,
         });
       });
     }
-
-    /* =========================
-       START REFRESH FLOW
-    ========================= */
 
     isRefreshing = true;
 
@@ -136,14 +114,12 @@ api.interceptors.response.use(
       );
 
       const { accessToken } = refreshResponse.data;
-
-      if (!accessToken) {
-        throw new Error("Refresh succeeded but no access token returned");
-      }
+      if (!accessToken)
+        throw new Error("No access token returned from refresh");
 
       localStorage.setItem("accessToken", accessToken);
 
-      // Update both the instance defaults and the current failed request
+      // Update headers for retrying queued requests
       api.defaults.headers.common.Authorization = `Bearer ${accessToken}`;
       originalRequest.headers.Authorization = `Bearer ${accessToken}`;
 
@@ -151,9 +127,9 @@ api.interceptors.response.use(
 
       return api(originalRequest);
     } catch (refreshError: any) {
-      processQueue(refreshError, null);
+      processQueue(refreshError, undefined);
       localStorage.removeItem("accessToken");
-      if (dispatch) dispatch(forceLogout());
+      dispatch?.(forceLogout());
       return Promise.reject(refreshError);
     } finally {
       isRefreshing = false;

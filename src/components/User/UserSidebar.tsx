@@ -11,8 +11,8 @@ import {
   LogOut,
   ReceiptRussianRubleIcon,
 } from "lucide-react";
-import { useAppDispatch } from "../../store/hooks"; // adjust path
-import { logout } from "../../store/slices/authSlice";
+import { useAppDispatch } from "../../store/hooks";
+import { logout, forceLogout } from "../../store/slices/authSlice";
 
 const UserSidebar = () => {
   const [isCollapsed, setIsCollapsed] = useState(false);
@@ -32,18 +32,27 @@ const UserSidebar = () => {
   const activeClass =
     "bg-[#c2a336] text-[#1a3a32] shadow-lg shadow-[#c2a336]/20 border border-[#d4b54d]";
 
-  // Logout handler
+  /* =========================
+     LOGOUT HANDLER
+  ========================= */
   const handleLogout = async () => {
     setIsLoggingOut(true);
+
     try {
+      // Dispatch logout thunk to clear backend refresh token
       await dispatch(logout()).unwrap();
-      // Navigate to login page on successful logout
+
+      // Clear Redux auth state
+      dispatch(forceLogout());
+
+      // Navigate to login page
       navigate("/login", { replace: true });
     } catch (err) {
       console.error("Logout failed:", err);
-      // Even if the API call fails, clear local state and redirect
-      localStorage.removeItem("user");
+
+      // Clear local storage & Redux state anyway
       localStorage.removeItem("accessToken");
+      dispatch(forceLogout());
       navigate("/login", { replace: true });
     } finally {
       setIsLoggingOut(false);
@@ -66,9 +75,7 @@ const UserSidebar = () => {
       <div className="flex flex-col items-center mb-10 shrink-0 overflow-hidden">
         <div
           className={`bg-[#c2a336] rounded-2xl flex items-center justify-center text-[#1a3a32] shadow-xl transition-all duration-500 ${
-            isCollapsed
-              ? "w-10 h-10 mb-0"
-              : "w-14 h-14 mb-4 transform -rotate-3"
+            isCollapsed ? "w-10 h-10 mb-0" : "w-14 h-14 mb-4 transform -rotate-3"
           }`}
         >
           <Scale size={isCollapsed ? 20 : 32} />
@@ -205,9 +212,7 @@ const SidebarLink = ({
       <>
         <div className="flex items-center gap-3">
           <span
-            className={`${
-              isActive ? "text-[#1a3a32]" : "text-[#c2a336]"
-            } shrink-0`}
+            className={`${isActive ? "text-[#1a3a32]" : "text-[#c2a336]"} shrink-0`}
           >
             {icon}
           </span>
