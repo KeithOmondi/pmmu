@@ -54,6 +54,7 @@ export interface IEvidence {
   format: string;
   description?: string;
   status?: "active" | "archived" | "rejected";
+  rejectionReason?: string; // <--- Add this line
   isArchived: boolean;
   resubmissionAttempt: number;
   isResubmission: boolean;
@@ -363,14 +364,14 @@ export const deleteIndicatorEvidence = createAsyncThunk<
       // Hits the route: DELETE /indicators/:id/evidence/:evidenceId
       // The backend 'id' param maps to 'indicatorId' here
       const { data } = await api.delete(
-        `/indicators/${indicatorId}/evidence/${evidenceId}`
+        `/indicators/${indicatorId}/evidence/${evidenceId}`,
       );
 
       // Trigger a success notification for the user
       dispatch(
         addNotification(
-          createNotif("Removed", "Your evidence has been deleted.")
-        )
+          createNotif("Removed", "Your evidence has been deleted."),
+        ),
       );
 
       // Return normalized indicator to update the state via the fulfilled matcher
@@ -379,7 +380,7 @@ export const deleteIndicatorEvidence = createAsyncThunk<
       // handleError catches 403 (Not Owner) or 404 (Not Found) from the controller
       return rejectWithValue(handleError(err, "Delete failed"));
     }
-  }
+  },
 );
 
 // DELETE INDICATOR
@@ -443,7 +444,7 @@ export const updateEvidenceNote = createAsyncThunk<
       // Hits PATCH /indicators/:id/evidence/:evidenceId/description
       const { data } = await api.patch(
         `/indicators/${indicatorId}/evidence/${evidenceId}/description`,
-        { description }
+        { description },
       );
 
       // Backend returns { success, message, indicator }
@@ -451,7 +452,7 @@ export const updateEvidenceNote = createAsyncThunk<
     } catch (err) {
       return rejectWithValue(handleError(err, "Failed to update exhibit note"));
     }
-  }
+  },
 );
 
 // ADMIN EVIDENCE
@@ -496,18 +497,62 @@ export const remindOverdueIndicators = createAsyncThunk(
       const { data } = await api.post(
         `/indicators/admin/remind-overdue`,
         {},
-        config
+        config,
       );
 
       return data.message;
     } catch (error: any) {
       return rejectWithValue(
-        error.response?.data?.message || "Failed to send reminders"
+        error.response?.data?.message || "Failed to send reminders",
       );
     }
-  }
+  },
 );
 
+/* =====================================
+   ASYNC THUNKS
+===================================== */
+
+export const rejectSingleEvidence = createAsyncThunk(
+  "indicators/rejectSingleEvidence",
+  async (
+    payload: { indicatorId: string; evidenceId: string; reason: string },
+    { rejectWithValue },
+  ) => {
+    try {
+      // Endpoint matches the controller logic: /indicators/:id/evidence/:evidenceId/reject
+      const { data } = await api.patch(
+        `/indicators/${payload.indicatorId}/evidence/${payload.evidenceId}/reject`,
+        { reason: payload.reason },
+      );
+      return data.indicator; // Return the updated indicator object
+    } catch (error: any) {
+      return rejectWithValue(
+        error.response?.data?.message || "Failed to reject document",
+      );
+    }
+  },
+);
+
+export const addIndicatorNote = createAsyncThunk(
+  "indicators/addNote",
+  async (
+    { indicatorId, text }: { indicatorId: string; text: string },
+    { rejectWithValue },
+  ) => {
+    try {
+      // Hits: POST /api/v1/indicators/64fb.../notes
+      const response = await api.post(`/indicators/${indicatorId}/notes`, {
+        text,
+      });
+      return response.data;
+    } catch (err: any) {
+      return rejectWithValue(
+        err.response?.data?.message || "Failed to add note",
+      );
+    }
+  },
+);
 /* =====================================================
    SELECTORS
 ===================================================== */
@@ -541,7 +586,6 @@ export const selectRejectedEvidence = (state: RootState) => {
   );
 };
 
-
 /* =====================================================
    SLICE
 ===================================================== */
@@ -559,7 +603,7 @@ const indicatorSlice = createSlice({
   },
   extraReducers: (builder) => {
     builder
-      // Standard Fulfilled
+      // 1. Specific Data Fetches
       .addCase(fetchAllIndicatorsForAdmin.fulfilled, (s, a) => {
         s.allIndicators = a.payload;
       })
@@ -572,7 +616,34 @@ const indicatorSlice = createSlice({
       .addCase(createIndicator.fulfilled, (s, a) => {
         s.allIndicators = [a.payload, ...s.allIndicators];
       })
-      
+      .addCase(addIndicatorNote.pending, (state) => {
+        state.submittingEvidence = true; // Reusing this or use a specific state like 'sendingNote'
+      })
+      .addCase(addIndicatorNote.fulfilled, (state, action) => {
+        state.submittingEvidence = false;
+        const { indicatorId, note } = action.payload;
+
+        // Find the indicator in the local state and push the new note
+        const indicator = state.userIndicators.find(
+          (i) => i._id === indicatorId,
+        );
+        if (indicator) {
+          // Initialize notes array if it doesn't exist (safety check)
+          if (!indicator.notes) indicator.notes = [];
+          indicator.notes.push(note);
+
+          // Optional: If the status was pending, move it to submitted visually
+          if (indicator.status === "pending") {
+            indicator.status = "submitted";
+          }
+        }
+      })
+      .addCase(addIndicatorNote.rejected, (state) => {
+        state.submittingEvidence = false;
+        // You could also store the error in state.error if you want to display it globally
+      })
+
+      // 2. Deletions
       .addCase(deleteIndicator.fulfilled, (s, a) => {
         const id = a.payload;
         s.allIndicators = s.allIndicators.filter((i) => i._id !== id);
@@ -580,16 +651,19 @@ const indicatorSlice = createSlice({
         s.submittedIndicators = s.submittedIndicators.filter(
           (i) => i._id !== id,
         );
-        // Remove any cached previews
+
+        // Remove cached previews for the deleted indicator
         Object.keys(s.previewUrls).forEach((k) => {
           if (k.includes(id)) delete s.previewUrls[k];
         });
       })
+
+      // 3. Previews
       .addCase(fetchEvidencePreviewUrl.fulfilled, (s, a) => {
         s.previewUrls[a.payload.cacheKey] = a.payload.previewUrl;
       })
 
-      // Global Matcher: Indicator Updates
+      // 4. GLOBAL MATCHER: Handles "rejectSingleEvidence" + all other updates
       .addMatcher(
         (a): a is PayloadAction<IIndicator> =>
           a.type.endsWith("/fulfilled") &&
@@ -597,6 +671,7 @@ const indicatorSlice = createSlice({
             "update",
             "approve",
             "reject",
+            "rejectSingleEvidence",
             "submitScore",
             "submitEvidence",
             "resubmitEvidence",
@@ -608,21 +683,26 @@ const indicatorSlice = createSlice({
           const updated = a.payload;
           const mapFn = (i: IIndicator) =>
             i._id === updated._id ? updated : i;
+
+          // Sync all lists in the state
           s.allIndicators = s.allIndicators.map(mapFn);
           s.userIndicators = s.userIndicators.map(mapFn);
           s.submittedIndicators = s.submittedIndicators.map(mapFn);
 
-          // Clear preview URLs if evidence changed
-          if (
-            [
-              "submitEvidence",
-              "resubmitEvidence",
-              "adminSubmitEvidence",
-              "deleteEvidence",
-            ].some((t) => a.type.includes(t))
-          ) {
+          // Logic to clear preview cache if evidence was modified or rejected
+          const cacheInvalidatingActions = [
+            "submitEvidence",
+            "resubmitEvidence",
+            "deleteEvidence",
+            "rejectSingleEvidence",
+          ];
+
+          if (cacheInvalidatingActions.some((t) => a.type.includes(t))) {
             Object.keys(s.previewUrls).forEach((k) => {
-              if (updated.evidence.find((e) => k.startsWith(e._id))) {
+              // If the cache key starts with any ID in the current evidence array, purge it
+              if (
+                updated.evidence.some((e) => k.startsWith(e._id.toString()))
+              ) {
                 delete s.previewUrls[k];
               }
             });
@@ -630,15 +710,16 @@ const indicatorSlice = createSlice({
         },
       )
 
-      // Pending Matcher
+      // 5. LOADING MATCHER
       .addMatcher(
         (a) => a.type.endsWith("/pending"),
         (s, a) => {
-          if (
-            ["submitEvidence", "resubmitEvidence", "adminSubmitEvidence"].some(
-              (t) => a.type.includes(t),
-            )
-          ) {
+          const isUpload = [
+            "submitEvidence",
+            "resubmitEvidence",
+            "adminSubmitEvidence",
+          ].some((t) => a.type.includes(t));
+          if (isUpload) {
             s.submittingEvidence = true;
           } else {
             s.loading = true;
@@ -647,7 +728,7 @@ const indicatorSlice = createSlice({
         },
       )
 
-      // Error / Fulfilled Cleanup Matcher
+      // 6. CLEANUP MATCHER (Handles Loading/Error globally)
       .addMatcher(
         (a) => a.type.endsWith("/fulfilled") || a.type.endsWith("/rejected"),
         (s, a: any) => {
